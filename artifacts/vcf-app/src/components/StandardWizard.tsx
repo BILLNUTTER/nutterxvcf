@@ -296,16 +296,6 @@ export function StandardWizard() {
                 <div className="rounded-xl border-2 border-primary/50 bg-primary/5 shadow-[0_0_16px_hsl(var(--primary)/0.08)] p-4 space-y-2">
                   <Label>Paste M-Pesa Confirmation SMS</Label>
 
-                  {/* Template hint */}
-                  <div className="rounded-md border border-primary/20 bg-black/30 px-3 py-2 text-[10px] font-mono text-primary/50 leading-relaxed">
-                    <span className="text-amber-400 font-bold">CODE</span>
-                    {" Confirmed. Ksh10.00 sent to CALVIN  OSORO 0758891491 on 30/3/26 at "}
-                    <span className="text-amber-400 font-bold">TIME</span>
-                    {". New M-PESA balance is "}
-                    <span className="text-amber-400 font-bold">BALANCE</span>
-                    {". Transaction cost, Ksh0.00. Amount you can transact within the day is 496,980.00. Earn interest daily on Ziidi MMF,Dial *334#"}
-                  </div>
-
                   <textarea
                     placeholder={MPESA_PLACEHOLDER}
                     value={mpesaMsg}
@@ -314,9 +304,6 @@ export function StandardWizard() {
                     className="w-full rounded-md border-2 border-primary/40 focus:border-primary bg-black/40 px-3 py-2 text-sm font-mono text-white placeholder:text-white/20 resize-none focus:outline-none focus:shadow-[0_0_10px_hsl(var(--primary)/0.3)] transition-all"
                     disabled={isPending}
                   />
-                  <p className="text-[10px] font-mono text-muted-foreground">
-                    Only the M-Pesa code, time, and balance will differ from the template above.
-                  </p>
                 </div>
 
                 {error && <ErrorBox>{error}</ErrorBox>}
