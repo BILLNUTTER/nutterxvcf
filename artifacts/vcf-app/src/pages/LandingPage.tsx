@@ -216,6 +216,24 @@ export default function LandingPage() {
                 crossRegisterLabel="Also initialize WhatsApp Bot VCF registration"
                 accentColor="primary"
               />
+
+              {/* Standard-only directory */}
+              <div className="space-y-2 mt-4">
+                <div className="flex items-center gap-2 px-1">
+                  <ShieldAlert className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-bold tracking-widest text-primary uppercase">
+                    Standard VCF Directory
+                  </span>
+                  <span className="ml-auto text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5">
+                    Ksh. 10 fee
+                  </span>
+                </div>
+                <UserDirectory
+                  users={stdUsers}
+                  accentColor="primary"
+                  verificationNote={{ kind: "payment", amount: "10", mpesaNumber: "0758891491" }}
+                />
+              </div>
             </motion.div>
           )}
 
@@ -245,6 +263,24 @@ export default function LandingPage() {
                 crossRegisterLabel="Also initialize Standard VCF registration"
                 accentColor="secondary"
               />
+
+              {/* Bot-only directory */}
+              <div className="space-y-2 mt-4">
+                <div className="flex items-center gap-2 px-1">
+                  <Smartphone className="w-4 h-4 text-secondary" />
+                  <span className="text-xs font-bold tracking-widest text-secondary uppercase">
+                    Bot VCF Directory
+                  </span>
+                  <span className="ml-auto text-[10px] font-mono text-green-400 bg-green-500/10 border border-green-500/30 rounded-full px-2 py-0.5">
+                    FREE
+                  </span>
+                </div>
+                <UserDirectory
+                  users={botUsers}
+                  accentColor="secondary"
+                  verificationNote={{ kind: "free" }}
+                />
+              </div>
             </motion.div>
           )}
 
@@ -260,50 +296,6 @@ export default function LandingPage() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* ── Verified Directories ── */}
-        <div className="mt-12 space-y-3">
-          <h3 className="text-xs font-bold font-mono text-muted-foreground uppercase tracking-widest text-center">
-            — Verified Member Directories —
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {/* Standard Directory */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 px-1">
-                <ShieldAlert className="w-4 h-4 text-primary" />
-                <span className="text-xs font-bold tracking-widest text-primary uppercase">
-                  Standard VCF Directory
-                </span>
-                <span className="ml-auto text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5">
-                  Ksh. 10 fee
-                </span>
-              </div>
-              <UserDirectory
-                users={stdUsers}
-                accentColor="primary"
-                verificationNote={{ kind: "payment", amount: "10", mpesaNumber: "0758891491" }}
-              />
-            </div>
-
-            {/* Bot Directory */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 px-1">
-                <Smartphone className="w-4 h-4 text-secondary" />
-                <span className="text-xs font-bold tracking-widest text-secondary uppercase">
-                  Bot VCF Directory
-                </span>
-                <span className="ml-auto text-[10px] font-mono text-green-400 bg-green-500/10 border border-green-500/30 rounded-full px-2 py-0.5">
-                  FREE
-                </span>
-              </div>
-              <UserDirectory
-                users={botUsers}
-                accentColor="secondary"
-                verificationNote={{ kind: "free" }}
-              />
-            </div>
-          </div>
-        </div>
 
       </div>
 
