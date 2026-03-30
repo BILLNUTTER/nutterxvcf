@@ -51,7 +51,7 @@ async function updateTarget(
 }
 
 export default function AdminPage() {
-  const { isAuthenticated, token, login, logout } = useAuth();
+  const { isAuthenticated, token, login, logout, handleAuthError } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -143,7 +143,7 @@ export default function AdminPage() {
         </header>
 
         {/* Settings Panel */}
-        <TargetSettingsPanel token={token!} />
+        <TargetSettingsPanel token={token!} onAuthError={handleAuthError} />
 
         <Tabs defaultValue="standard" className="w-full">
           <TabsList className="grid w-full sm:w-[576px] grid-cols-3 mb-8">
@@ -156,13 +156,13 @@ export default function AdminPage() {
           </TabsList>
 
           <TabsContent value="standard" className="mt-0">
-            <RegistrationTable type="standard" token={token!} />
+            <RegistrationTable type="standard" token={token!} onAuthError={handleAuthError} />
           </TabsContent>
           <TabsContent value="bot" className="mt-0">
-            <RegistrationTable type="bot" token={token!} />
+            <RegistrationTable type="bot" token={token!} onAuthError={handleAuthError} />
           </TabsContent>
           <TabsContent value="payments" className="mt-0">
-            <PaymentsTable token={token!} />
+            <PaymentsTable token={token!} onAuthError={handleAuthError} />
           </TabsContent>
         </Tabs>
       </div>
@@ -170,7 +170,7 @@ export default function AdminPage() {
   );
 }
 
-function TargetSettingsPanel({ token }: { token: string }) {
+function TargetSettingsPanel({ token, onAuthError }: { token: string; onAuthError: () => void }) {
   const queryClient = useQueryClient();
 
   const { data: settings, isLoading } = useQuery<VcfSettings>({
@@ -198,6 +198,10 @@ function TargetSettingsPanel({ token }: { token: string }) {
       setBotTarget("");
     },
     onError: (err: Error) => {
+      if ((err as { status?: number }).status === 401 || err.message.toLowerCase().includes("token")) {
+        onAuthError();
+        return;
+      }
       setSaveMsg(`ERROR: ${err.message}`);
       setTimeout(() => setSaveMsg(""), 4000);
     },
@@ -342,7 +346,7 @@ async function deletePaymentConfirmation(token: string, id: number): Promise<voi
   });
 }
 
-function PaymentsTable({ token }: { token: string }) {
+function PaymentsTable({ token, onAuthError }: { token: string; onAuthError: () => void }) {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -351,6 +355,8 @@ function PaymentsTable({ token }: { token: string }) {
     queryKey: ["/api/admin/payment-confirmations"],
     queryFn: () => fetchPaymentConfirmations(token),
     refetchInterval: 8000,
+    throwOnError: false,
+    meta: { onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); } },
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/payment-confirmations"] });
@@ -485,7 +491,7 @@ function PaymentsTable({ token }: { token: string }) {
   );
 }
 
-function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType; token: string }) {
+function RegistrationTable({ type, token, onAuthError }: { type: GetAdminRegistrationsType; token: string; onAuthError: () => void }) {
   const queryClient = useQueryClient();
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
@@ -493,7 +499,12 @@ function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType; t
     { type },
     {
       request: { headers: { "x-admin-token": token } },
-      query: { queryKey: getGetAdminRegistrationsQueryKey({ type }), refetchInterval: 5000 },
+      query: {
+        queryKey: getGetAdminRegistrationsQueryKey({ type }),
+        refetchInterval: 5000,
+        throwOnError: false,
+        meta: { onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); } },
+      },
     }
   );
 
@@ -505,7 +516,10 @@ function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType; t
 
   const updateMutation = useUpdateRegistrationStatus({
     request: { headers: { "x-admin-token": token } },
-    mutation: { onSuccess: invalidateAll },
+    mutation: {
+      onSuccess: invalidateAll,
+      onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); },
+    },
   });
 
   const deleteMutation = useDeleteRegistration({
@@ -515,6 +529,7 @@ function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType; t
         setConfirmDeleteId(null);
         invalidateAll();
       },
+      onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); },
     },
   });
 
