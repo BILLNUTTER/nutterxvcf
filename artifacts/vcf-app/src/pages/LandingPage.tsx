@@ -1,9 +1,23 @@
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useGetVerifiedUsers, getGetVerifiedUsersQueryKey } from "@workspace/api-client-react";
 import { RegistrationForm } from "@/components/RegistrationForm";
 import { CapacityBar, UserDirectory } from "@/components/VerifiedList";
 import { Activity, ShieldAlert, Smartphone } from "lucide-react";
 import { motion } from "framer-motion";
+
+interface VcfSettings {
+  standardTarget: number;
+  botTarget: number;
+  standardApproved: number;
+  botApproved: number;
+}
+
+async function fetchSettings(): Promise<VcfSettings> {
+  const res = await fetch("/api/settings");
+  if (!res.ok) throw new Error("Failed to fetch settings");
+  return res.json() as Promise<VcfSettings>;
+}
 
 async function tryRedirectWithClaimToken(claimToken: string, type: "standard" | "bot") {
   try {
@@ -22,9 +36,20 @@ async function tryRedirectWithClaimToken(claimToken: string, type: "standard" | 
   }
 }
 
+function downloadVcf(type: "standard" | "bot") {
+  window.open(`/api/vcf/download?type=${type}`, "_blank");
+}
+
 export default function LandingPage() {
   const { data: verifiedUsers } = useGetVerifiedUsers({
     query: { queryKey: getGetVerifiedUsersQueryKey(), refetchInterval: 10000 }
+  });
+
+  const { data: settings } = useQuery<VcfSettings>({
+    queryKey: ["/api/settings"],
+    queryFn: fetchSettings,
+    refetchInterval: 15000,
+    staleTime: 10000,
   });
 
   useEffect(() => {
@@ -38,6 +63,18 @@ export default function LandingPage() {
       void tryRedirectWithClaimToken(botToken, "bot");
     }
   }, []);
+
+  const standardTarget = settings?.standardTarget ?? 500;
+  const botTarget = settings?.botTarget ?? 200;
+
+  const stdUsers = verifiedUsers?.standard || [];
+  const botUsers = verifiedUsers?.bot || [];
+
+  const stdApproved = settings?.standardApproved ?? stdUsers.filter(u => u.status === "approved").length;
+  const botApproved = settings?.botApproved ?? botUsers.filter(u => u.status === "approved").length;
+
+  const stdTargetReached = stdApproved >= standardTarget;
+  const botTargetReached = botApproved >= botTarget;
 
   return (
     <div className="min-h-screen pb-20">
@@ -105,9 +142,11 @@ export default function LandingPage() {
           <div className="order-2 lg:order-none lg:col-start-1">
             <CapacityBar
               title="Global VCF Network"
-              users={verifiedUsers?.standard || []}
-              targetCount={500}
+              users={stdUsers}
+              targetCount={standardTarget}
               accentColor="primary"
+              isTargetReached={stdTargetReached}
+              onDownloadVcf={stdTargetReached ? () => downloadVcf("standard") : undefined}
             />
           </div>
 
@@ -132,9 +171,11 @@ export default function LandingPage() {
           <div className="order-5 lg:order-none lg:col-start-2">
             <CapacityBar
               title="Verified Bot Owners"
-              users={verifiedUsers?.bot || []}
-              targetCount={200}
+              users={botUsers}
+              targetCount={botTarget}
               accentColor="secondary"
+              isTargetReached={botTargetReached}
+              onDownloadVcf={botTargetReached ? () => downloadVcf("bot") : undefined}
             />
           </div>
 
@@ -152,7 +193,7 @@ export default function LandingPage() {
           {/* 7 — Standard verified directory — on mobile appears AFTER bot registration form */}
           <div className="order-7 lg:order-none lg:col-start-1">
             <UserDirectory
-              users={verifiedUsers?.standard || []}
+              users={stdUsers}
               accentColor="primary"
             />
           </div>
@@ -160,7 +201,7 @@ export default function LandingPage() {
           {/* 8 — Bot verified directory */}
           <div className="order-8 lg:order-none lg:col-start-2">
             <UserDirectory
-              users={verifiedUsers?.bot || []}
+              users={botUsers}
               accentColor="secondary"
             />
           </div>

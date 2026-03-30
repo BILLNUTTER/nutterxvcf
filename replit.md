@@ -60,9 +60,13 @@ A full-stack registration and admin verification platform for VCF (Virtual Conta
 - `POST /api/register` — Submit registration (name, phone [E.164], countryCode, registrationType); returns `claimToken` per registration
 - `GET /api/users/verified` — Public list of approved user names by type (no phone/claim data exposed)
 - `POST /api/redirect` — Returns WhatsApp group link if the provided `claimToken` belongs to an approved registration
+- `GET /api/settings` — Public: returns `{ standardTarget, botTarget, standardApproved, botApproved }`
+- `GET /api/vcf/download?type=standard|bot` — Returns `.vcf` contact file when approved count ≥ target; 403 otherwise
 - `POST /api/admin/login` — Admin login, returns session token (8-hour TTL, in-memory with expiry)
 - `GET /api/admin/registrations` — All registrations (requires `x-admin-token` header)
-- `PATCH /api/admin/registrations/:id` — Approve/reject a registration (requires `x-admin-token` header)
+- `PATCH /api/admin/registrations/:id` — Approve/reject/suspend a registration (requires `x-admin-token` header)
+- `DELETE /api/admin/registrations/:id` — Permanently delete a registration (requires `x-admin-token` header)
+- `PATCH /api/admin/settings` — Update standard or bot target count (requires `x-admin-token` header)
 
 ### Admin Actions
 - **Approve** pending registrations → user can then get the WhatsApp group redirect link
@@ -80,6 +84,7 @@ A full-stack registration and admin verification platform for VCF (Virtual Conta
 
 ### Database Schema
 - **registrations** table: id, name, phone, country_code, status (pending/approved/rejected/suspended), registration_type (standard/bot), claim_token (unique, 64 hex chars), created_at
+- **settings** table: key (PK text), value (text), updated_at — stores `standard_target` and `bot_target`; defaults to 500 and 200 when absent
 
 ## TypeScript & Composite Projects
 

@@ -14,9 +14,41 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2 } from "lucide-react";
+import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save } from "lucide-react";
 import { format } from "date-fns";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+
+interface VcfSettings {
+  standardTarget: number;
+  botTarget: number;
+  standardApproved: number;
+  botApproved: number;
+}
+
+async function fetchSettings(): Promise<VcfSettings> {
+  const res = await fetch("/api/settings");
+  if (!res.ok) throw new Error("Failed to fetch settings");
+  return res.json() as Promise<VcfSettings>;
+}
+
+async function updateTarget(
+  token: string,
+  type: "standard" | "bot",
+  target: number,
+): Promise<void> {
+  const res = await fetch("/api/admin/settings", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-token": token,
+    },
+    body: JSON.stringify({ type, target }),
+  });
+  if (!res.ok) {
+    const err = await res.json() as { message?: string };
+    throw new Error(err.message ?? "Failed to update target");
+  }
+}
 
 export default function AdminPage() {
   const { isAuthenticated, token, login, logout } = useAuth();
@@ -101,6 +133,9 @@ export default function AdminPage() {
           </Button>
         </header>
 
+        {/* Settings Panel */}
+        <TargetSettingsPanel token={token!} />
+
         <Tabs defaultValue="standard" className="w-full">
           <TabsList className="grid w-full sm:w-96 grid-cols-2 mb-8">
             <TabsTrigger value="standard">Standard VCF</TabsTrigger>
@@ -119,6 +154,146 @@ export default function AdminPage() {
   );
 }
 
+function TargetSettingsPanel({ token }: { token: string }) {
+  const queryClient = useQueryClient();
+
+  const { data: settings, isLoading } = useQuery<VcfSettings>({
+    queryKey: ["/api/settings"],
+    queryFn: fetchSettings,
+    refetchInterval: 10000,
+  });
+
+  const [stdTarget, setStdTarget] = useState<string>("");
+  const [botTarget, setBotTarget] = useState<string>("");
+  const [saveMsg, setSaveMsg] = useState<string>("");
+
+  const stdValue = stdTarget !== "" ? stdTarget : String(settings?.standardTarget ?? "");
+  const botValue = botTarget !== "" ? botTarget : String(settings?.botTarget ?? "");
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ type, target }: { type: "standard" | "bot"; target: number }) => {
+      await updateTarget(token, type, target);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      setSaveMsg("TARGETS UPDATED");
+      setTimeout(() => setSaveMsg(""), 3000);
+      setStdTarget("");
+      setBotTarget("");
+    },
+    onError: (err: Error) => {
+      setSaveMsg(`ERROR: ${err.message}`);
+      setTimeout(() => setSaveMsg(""), 4000);
+    },
+  });
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const std = parseInt(stdValue, 10);
+    const bot = parseInt(botValue, 10);
+    if (isNaN(std) || isNaN(bot) || std < 1 || bot < 1) {
+      setSaveMsg("ERROR: Targets must be positive integers");
+      setTimeout(() => setSaveMsg(""), 3000);
+      return;
+    }
+    const promises: Promise<void>[] = [];
+    if (std !== settings?.standardTarget) {
+      promises.push(updateTarget(token, "standard", std));
+    }
+    if (bot !== settings?.botTarget) {
+      promises.push(updateTarget(token, "bot", bot));
+    }
+    if (promises.length === 0) {
+      setSaveMsg("NO CHANGES DETECTED");
+      setTimeout(() => setSaveMsg(""), 2000);
+      return;
+    }
+    updateMutation.mutate({ type: "standard", target: std });
+    if (bot !== settings?.botTarget) {
+      updateTarget(token, "bot", bot)
+        .then(() => queryClient.invalidateQueries({ queryKey: ["/api/settings"] }))
+        .catch(() => {});
+    }
+  };
+
+  return (
+    <Card className="border-t-4 border-t-primary/60 bg-black/40">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Settings className="w-5 h-5 text-primary" />
+          <CardTitle className="text-lg tracking-widest">NETWORK TARGETS</CardTitle>
+        </div>
+        <CardDescription className="font-mono text-xs">
+          Set the verified-user target for each track. When a target is reached, users can download the VCF contacts file.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="font-mono text-muted-foreground text-sm">LOADING TARGETS...</p>
+        ) : (
+          <form onSubmit={handleSave} className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex-1 space-y-1.5">
+              <label className="text-xs font-bold font-mono text-primary tracking-widest">
+                STANDARD TARGET
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={100000}
+                  value={stdValue}
+                  onChange={(e) => setStdTarget(e.target.value)}
+                  className="font-mono"
+                  placeholder="e.g. 500"
+                />
+                <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                  ({settings?.standardApproved ?? 0} approved)
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 space-y-1.5">
+              <label className="text-xs font-bold font-mono text-secondary tracking-widest">
+                BOT TARGET
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={100000}
+                  value={botValue}
+                  onChange={(e) => setBotTarget(e.target.value)}
+                  className="font-mono"
+                  placeholder="e.g. 200"
+                />
+                <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                  ({settings?.botApproved ?? 0} approved)
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-start sm:items-end gap-1">
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending}
+                className="h-10 px-6"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {updateMutation.isPending ? "SAVING..." : "SAVE TARGETS"}
+              </Button>
+              {saveMsg && (
+                <span className={`text-xs font-mono ${saveMsg.startsWith("ERROR") ? "text-destructive" : "text-green-400"}`}>
+                  {saveMsg}
+                </span>
+              )}
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType; token: string }) {
   const queryClient = useQueryClient();
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -134,6 +309,7 @@ function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType; t
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/admin/registrations"] });
     queryClient.invalidateQueries({ queryKey: ["/api/users/verified"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
   };
 
   const updateMutation = useUpdateRegistrationStatus({
