@@ -13,6 +13,7 @@ import { Loader2, ChevronRight, CheckCircle2, ShieldAlert, Copy, Check } from "l
 import { motion, AnimatePresence } from "framer-motion";
 
 const MPESA_NUMBER = "0758891491";
+const MPESA_RECIPIENT_NAME = "CALVIN OSORO";
 
 // Mirror the server-side validation so bad messages are caught before any API call
 function clientValidateMpesa(msg: string): string | null {
@@ -26,8 +27,12 @@ function clientValidateMpesa(msg: string): string | null {
   const sentAmt = amountMatch[1].replace(/,/g, "");
   if (parseFloat(sentAmt) !== 10.00 || sentAmt !== "10.00")
     return `Wrong payment amount: message shows Ksh${amountMatch[1]} but exactly Ksh10.00 is required.`;
-  if (!t.includes(MPESA_NUMBER))
+  const recipientMatch = /sent to ([A-Z][A-Z ]+?)\s+(0758891491)/i.exec(t);
+  if (!recipientMatch)
     return `Invalid recipient: payment must be sent to ${MPESA_NUMBER}.`;
+  const extractedName = recipientMatch[1].trim().replace(/\s+/g, " ").toUpperCase();
+  if (extractedName !== MPESA_RECIPIENT_NAME)
+    return "Recipient name does not match the registered account for this M-Pesa number. Do not edit the message.";
   if (!/New M-PESA balance is Ksh/.test(t))
     return "Invalid message: missing 'New M-PESA balance is Ksh…' line.";
   if (!/Transaction cost, Ksh0\.00/.test(t))

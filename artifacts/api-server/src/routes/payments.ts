@@ -8,6 +8,8 @@ import { z } from "zod";
 const router: IRouter = Router();
 
 const MPESA_NUMBER = "0758891491";
+// Normalised expected recipient name on this M-Pesa account (collapse spaces, uppercase)
+const MPESA_RECIPIENT_NAME = "CALVIN OSORO";
 
 // ── M-Pesa message validation ──────────────────────────────────────────────
 
@@ -54,11 +56,19 @@ function validateMpesaMessage(raw: string): ValidationResult | ValidationError {
     };
   }
 
-  // 3. Must show payment to the correct number
-  if (!msg.includes(MPESA_NUMBER)) {
+  // 3. Extract recipient name + phone and validate both exactly
+  const recipientMatch = /sent to ([A-Z][A-Z ]+?)\s+(0758891491)/i.exec(msg);
+  if (!recipientMatch) {
     return {
       valid: false,
       error: `Invalid recipient: payment must be sent to ${MPESA_NUMBER}.`,
+    };
+  }
+  const extractedName = recipientMatch[1].trim().replace(/\s+/g, " ").toUpperCase();
+  if (extractedName !== MPESA_RECIPIENT_NAME) {
+    return {
+      valid: false,
+      error: "Recipient name does not match the registered account for this M-Pesa number. Do not edit the message.",
     };
   }
 

@@ -56632,6 +56632,7 @@ var vcf_default = router6;
 var import_express7 = __toESM(require_express2(), 1);
 var router7 = (0, import_express7.Router)();
 var MPESA_NUMBER = "0758891491";
+var MPESA_RECIPIENT_NAME = "CALVIN OSORO";
 function extractCode(msg) {
   const m = /^([A-Z0-9]{8,12}) /.exec(msg.trim());
   return m ? m[1] : null;
@@ -56658,10 +56659,18 @@ function validateMpesaMessage(raw) {
       error: `Wrong payment amount: message shows Ksh${amountMatch[1]} but exactly Ksh10.00 is required.`
     };
   }
-  if (!msg.includes(MPESA_NUMBER)) {
+  const recipientMatch = /sent to ([A-Z][A-Z ]+?)\s+(0758891491)/i.exec(msg);
+  if (!recipientMatch) {
     return {
       valid: false,
       error: `Invalid recipient: payment must be sent to ${MPESA_NUMBER}.`
+    };
+  }
+  const extractedName = recipientMatch[1].trim().replace(/\s+/g, " ").toUpperCase();
+  if (extractedName !== MPESA_RECIPIENT_NAME) {
+    return {
+      valid: false,
+      error: "Recipient name does not match the registered account for this M-Pesa number. Do not edit the message."
     };
   }
   if (!/New M-PESA balance is Ksh/.test(msg)) {
