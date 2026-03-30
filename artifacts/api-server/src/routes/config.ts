@@ -6,10 +6,10 @@ import { eq, and } from "drizzle-orm";
 const router: IRouter = Router();
 
 router.post("/redirect", async (req, res) => {
-  const { name, type } = req.body as { name?: string; type?: string };
+  const { claimToken, type } = req.body as { claimToken?: string; type?: string };
 
-  if (!name || typeof name !== "string" || name.trim().length === 0) {
-    res.status(400).json({ error: "validation_error", message: "name is required" });
+  if (!claimToken || typeof claimToken !== "string" || claimToken.length < 32) {
+    res.status(400).json({ error: "validation_error", message: "claimToken is required" });
     return;
   }
   if (type !== "standard" && type !== "bot") {
@@ -23,7 +23,7 @@ router.post("/redirect", async (req, res) => {
       .from(registrationsTable)
       .where(
         and(
-          eq(registrationsTable.name, name.trim()),
+          eq(registrationsTable.claimToken, claimToken),
           eq(registrationsTable.registrationType, type),
           eq(registrationsTable.status, "approved"),
         ),
@@ -31,7 +31,7 @@ router.post("/redirect", async (req, res) => {
       .limit(1);
 
     if (!registration) {
-      res.status(403).json({ error: "not_approved", message: "User not approved" });
+      res.status(403).json({ error: "not_approved", message: "Not approved or claim token invalid" });
       return;
     }
 

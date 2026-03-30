@@ -20,12 +20,13 @@ export const registrationsTable = pgTable("registrations", {
   countryCode: text("country_code").notNull(),
   status: statusEnum("status").notNull().default("pending"),
   registrationType: registrationTypeEnum("registration_type").notNull(),
+  claimToken: text("claim_token").notNull().unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertRegistrationSchema = createInsertSchema(
   registrationsTable,
-).omit({ id: true, status: true, createdAt: true });
+).omit({ id: true, status: true, createdAt: true, claimToken: true });
 
 export type InsertRegistration = z.infer<typeof insertRegistrationSchema>;
 export type Registration = typeof registrationsTable.$inferSelect;

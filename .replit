@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -31,3 +31,6 @@ timeoutMs = 20000
 ADMIN_USERNAME = "nutterx_admin"
 STANDARD_GROUP_LINK = "https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t"
 BOT_GROUP_LINK = "https://chat.whatsapp.com/placeholder-bot-link"
+
+[nix]
+channel = "stable-25_05"

@@ -12,6 +12,15 @@ import { playSuccessSound } from "@/lib/utils";
 import { Loader2, TerminalSquare } from "lucide-react";
 import { motion } from "framer-motion";
 
+interface RegistrationResponse {
+  id: number;
+  name: string;
+  registrationType: string;
+  status: string;
+  claimToken: string;
+  crossClaimToken?: string;
+}
+
 interface Props {
   type: "standard" | "bot";
   title: string;
@@ -29,12 +38,13 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
 
   const submitMutation = useSubmitRegistration({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data) => {
         playSuccessSound();
-        localStorage.setItem(`registered_${type}_name`, name);
-        if (alsoRegisterOther) {
+        const res = data as unknown as RegistrationResponse;
+        localStorage.setItem(`vcf_claim_${type}`, res.claimToken);
+        if (res.crossClaimToken) {
           const otherType = type === "standard" ? "bot" : "standard";
-          localStorage.setItem(`registered_${otherType}_name`, name);
+          localStorage.setItem(`vcf_claim_${otherType}`, res.crossClaimToken);
         }
         setLocation("/pending");
       },
@@ -69,27 +79,16 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
       phone: parsedPhone.number.toString(),
       countryCode: `+${parsedPhone.countryCallingCode}`,
       registrationType: type as RegistrationInputRegistrationType,
-      alsoRegisterStandard: type === "bot" ? alsoRegisterOther : undefined,
+      alsoRegisterStandard: alsoRegisterOther,
     };
 
-    try {
-      // First mutation
-      await submitMutation.mutateAsync({ data: payload });
-      
-      // If it's a standard form wanting to register for bot (schema only supports bot->standard directly)
-      if (type === "standard" && alsoRegisterOther) {
-        await submitMutation.mutateAsync({ 
-          data: { ...payload, registrationType: "bot" as RegistrationInputRegistrationType } 
-        });
-      }
-    } catch (err) {
-      // Handled by onError
-    }
+    submitMutation.mutate({ data: payload });
   };
 
-  const isBot = type === "bot";
   const neonClass = accentColor === "primary" ? "neon-border" : "neon-border-cyan";
-  const titleColor = accentColor === "primary" ? "text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.5)]" : "text-secondary drop-shadow-[0_0_8px_hsl(var(--secondary)/0.5)]";
+  const titleColor = accentColor === "primary"
+    ? "text-primary drop-shadow-[0_0_8px_hsl(var(--primary)/0.5)]"
+    : "text-secondary drop-shadow-[0_0_8px_hsl(var(--secondary)/0.5)]";
   const buttonVariant = accentColor === "primary" ? "default" : "secondary";
 
   return (
@@ -111,15 +110,15 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Full Name</label>
-                <Input 
-                  placeholder="e.g. Neo Anderson" 
+                <Input
+                  placeholder="e.g. Neo Anderson"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="font-mono"
                   disabled={submitMutation.isPending}
                 />
               </div>
-              
+
               <div>
                 <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Phone Number</label>
                 <div className="relative">
@@ -135,13 +134,13 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
 
               {crossRegisterLabel && (
                 <div className="flex items-center space-x-2 p-3 border border-border/50 rounded-md bg-background/30">
-                  <Checkbox 
-                    id={`cross-register-${type}`} 
+                  <Checkbox
+                    id={`cross-register-${type}`}
                     checked={alsoRegisterOther}
                     onCheckedChange={(checked) => setAlsoRegisterOther(!!checked)}
                     disabled={submitMutation.isPending}
                   />
-                  <label 
+                  <label
                     htmlFor={`cross-register-${type}`}
                     className="text-sm font-mono cursor-pointer"
                   >
@@ -157,9 +156,9 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
               </div>
             )}
 
-            <Button 
-              type="submit" 
-              className="w-full h-12 text-lg" 
+            <Button
+              type="submit"
+              className="w-full h-12 text-lg"
               variant={buttonVariant}
               disabled={submitMutation.isPending}
             >
@@ -169,8 +168,8 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
                 "INITIALIZE REGISTRATION"
               )}
             </Button>
-            
-            {isBot && (
+
+            {type === "bot" && (
               <p className="text-xs text-center text-muted-foreground font-mono mt-4">
                 [SYSTEM NOTE] Admin will manually verify WhatsApp bot ownership before approval.
               </p>

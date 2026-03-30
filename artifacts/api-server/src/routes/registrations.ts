@@ -6,8 +6,13 @@ import {
   GetVerifiedUsersResponse,
 } from "@workspace/api-zod";
 import { eq, and } from "drizzle-orm";
+import crypto from "crypto";
 
 const router: IRouter = Router();
+
+function generateClaimToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
 
 router.post("/register", async (req, res) => {
   const parsed = SubmitRegistrationBody.safeParse(req.body);
@@ -19,8 +24,6 @@ router.post("/register", async (req, res) => {
   const { name, phone, countryCode, registrationType, alsoRegisterStandard } = parsed.data;
 
   try {
-    const results: typeof registrationsTable.$inferSelect[] = [];
-
     const existing = await db
       .select()
       .from(registrationsTable)
@@ -40,9 +43,10 @@ router.post("/register", async (req, res) => {
 
     const [primary] = await db
       .insert(registrationsTable)
-      .values({ name, phone, countryCode, registrationType })
+      .values({ name, phone, countryCode, registrationType, claimToken: generateClaimToken() })
       .returning();
-    results.push(primary);
+
+    let secondaryClaimToken: string | undefined;
 
     if (alsoRegisterStandard && registrationType === "bot") {
       const existingStandard = await db
@@ -58,13 +62,38 @@ router.post("/register", async (req, res) => {
       if (existingStandard.length === 0) {
         const [secondary] = await db
           .insert(registrationsTable)
-          .values({ name, phone, countryCode, registrationType: "standard" })
+          .values({ name, phone, countryCode, registrationType: "standard", claimToken: generateClaimToken() })
           .returning();
-        results.push(secondary);
+        secondaryClaimToken = secondary.claimToken;
+      }
+    } else if (alsoRegisterStandard && registrationType === "standard") {
+      const existingBot = await db
+        .select()
+        .from(registrationsTable)
+        .where(
+          and(
+            eq(registrationsTable.phone, phone),
+            eq(registrationsTable.registrationType, "bot"),
+          ),
+        );
+
+      if (existingBot.length === 0) {
+        const [secondary] = await db
+          .insert(registrationsTable)
+          .values({ name, phone, countryCode, registrationType: "bot", claimToken: generateClaimToken() })
+          .returning();
+        secondaryClaimToken = secondary.claimToken;
       }
     }
 
-    res.status(201).json(primary);
+    res.status(201).json({
+      id: primary.id,
+      name: primary.name,
+      registrationType: primary.registrationType,
+      status: primary.status,
+      claimToken: primary.claimToken,
+      crossClaimToken: secondaryClaimToken,
+    });
   } catch (err) {
     req.log.error({ err }, "Registration failed");
     res.status(500).json({ error: "server_error", message: "Registration failed" });

@@ -5,12 +5,12 @@ import { CapacityBar, UserDirectory } from "@/components/VerifiedList";
 import { Activity, ShieldAlert, Smartphone } from "lucide-react";
 import { motion } from "framer-motion";
 
-async function checkAndRedirect(name: string, type: "standard" | "bot") {
+async function tryRedirectWithClaimToken(claimToken: string, type: "standard" | "bot") {
   try {
     const res = await fetch("/api/redirect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, type }),
+      body: JSON.stringify({ claimToken, type }),
     });
     if (res.ok) {
       const { redirectUrl } = await res.json() as { redirectUrl: string };
@@ -28,17 +28,15 @@ export default function LandingPage() {
   });
 
   useEffect(() => {
-    if (verifiedUsers) {
-      const stdName = localStorage.getItem("registered_standard_name");
-      const botName = localStorage.getItem("registered_bot_name");
+    const stdToken = localStorage.getItem("vcf_claim_standard");
+    const botToken = localStorage.getItem("vcf_claim_bot");
 
-      if (stdName && verifiedUsers.standard.some(u => u.name === stdName)) {
-        void checkAndRedirect(stdName, "standard");
-      } else if (botName && verifiedUsers.bot.some(u => u.name === botName)) {
-        void checkAndRedirect(botName, "bot");
-      }
+    if (stdToken) {
+      void tryRedirectWithClaimToken(stdToken, "standard");
+    } else if (botToken) {
+      void tryRedirectWithClaimToken(botToken, "bot");
     }
-  }, [verifiedUsers]);
+  }, []);
 
   return (
     <div className="min-h-screen pb-20">
