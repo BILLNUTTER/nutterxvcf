@@ -56509,6 +56509,52 @@ var vcf_default = router6;
 // src/routes/payments.ts
 var import_express7 = __toESM(require_express2(), 1);
 var router7 = (0, import_express7.Router)();
+var MPESA_NUMBER = "0758891491";
+function extractCode(msg) {
+  const m = /^([A-Z0-9]{8,12}) /.exec(msg.trim());
+  return m ? m[1] : null;
+}
+function validateMpesaMessage(raw) {
+  const msg = raw.trim();
+  if (!/^[A-Z0-9]{8,12} Confirmed\./.test(msg)) {
+    return {
+      valid: false,
+      error: "Invalid message: must start with the M-Pesa transaction code followed by 'Confirmed.' (e.g. UCURIAYGQL Confirmed.)."
+    };
+  }
+  if (!/Ksh10\.00 sent to/.test(msg)) {
+    return {
+      valid: false,
+      error: "Invalid payment amount: message must show 'Ksh10.00 sent to'."
+    };
+  }
+  if (!msg.includes(MPESA_NUMBER)) {
+    return {
+      valid: false,
+      error: `Invalid recipient: payment must be sent to ${MPESA_NUMBER}.`
+    };
+  }
+  if (!/New M-PESA balance is Ksh/.test(msg)) {
+    return {
+      valid: false,
+      error: "Invalid message: missing 'New M-PESA balance is Ksh\u2026' line."
+    };
+  }
+  if (!/Transaction cost, Ksh0\.00/.test(msg)) {
+    return {
+      valid: false,
+      error: "Invalid message: missing 'Transaction cost, Ksh0.00' confirmation."
+    };
+  }
+  if (/[^\w\s.,\-/:*#()\n\r]/.test(msg)) {
+    return {
+      valid: false,
+      error: "Message contains unexpected characters. Please paste the exact M-Pesa SMS without editing it."
+    };
+  }
+  const code = extractCode(msg);
+  return { valid: true, code };
+}
 var SubmitPaymentBody = external_exports.object({
   name: external_exports.string().min(1).max(200).trim(),
   phone: external_exports.string().min(3).max(30).trim(),
@@ -56520,12 +56566,28 @@ router7.post("/payment-confirmation", async (req, res) => {
     res.status(400).json({ error: "validation_error", message: parsed.error.message });
     return;
   }
+  const { name, phone, mpesaMessage } = parsed.data;
+  const validation = validateMpesaMessage(mpesaMessage);
+  if (!validation.valid) {
+    res.status(400).json({ error: "invalid_mpesa_message", message: validation.error });
+    return;
+  }
   try {
-    const [record2] = await db.insert(paymentConfirmationsTable).values({
-      name: parsed.data.name,
-      phone: parsed.data.phone,
-      mpesaMessage: parsed.data.mpesaMessage
-    }).returning();
+    const existing = await db.select({ id: paymentConfirmationsTable.id }).from(paymentConfirmationsTable).where(like(paymentConfirmationsTable.mpesaMessage, `${validation.code} %`)).limit(1);
+    if (existing.length > 0) {
+      res.status(409).json({
+        error: "mpesa_code_already_used",
+        message: `M-Pesa message already used to verify a different number. Send Ksh 10 to ${MPESA_NUMBER} and use the new confirmation message.`
+      });
+      return;
+    }
+  } catch (err) {
+    req.log.error({ err }, "Failed to check mpesa code uniqueness");
+    res.status(500).json({ error: "server_error", message: "Failed to validate payment" });
+    return;
+  }
+  try {
+    const [record2] = await db.insert(paymentConfirmationsTable).values({ name, phone, mpesaMessage }).returning();
     res.status(201).json({ success: true, id: record2.id });
   } catch (err) {
     req.log.error({ err }, "Failed to save payment confirmation");

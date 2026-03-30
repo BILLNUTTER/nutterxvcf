@@ -14,6 +14,25 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const MPESA_NUMBER = "0758891491";
 
+// Mirror the server-side validation so bad messages are caught before any API call
+function clientValidateMpesa(msg: string): string | null {
+  const t = msg.trim();
+  if (!t) return "Please paste your M-Pesa confirmation message.";
+  if (!/^[A-Z0-9]{8,12} Confirmed\./.test(t))
+    return "Invalid message: must start with the M-Pesa code followed by 'Confirmed.' (e.g. UCURIAYGQL Confirmed.)";
+  if (!/Ksh10\.00 sent to/.test(t))
+    return "Invalid payment amount: message must show 'Ksh10.00 sent to'.";
+  if (!t.includes(MPESA_NUMBER))
+    return `Invalid recipient: payment must be sent to ${MPESA_NUMBER}.`;
+  if (!/New M-PESA balance is Ksh/.test(t))
+    return "Invalid message: missing 'New M-PESA balance is Ksh…' line.";
+  if (!/Transaction cost, Ksh0\.00/.test(t))
+    return "Invalid message: missing 'Transaction cost, Ksh0.00' line.";
+  if (/[^\w\s.,\-/:*#()\n\r]/.test(t))
+    return "Message contains unexpected characters. Paste the exact M-Pesa SMS without editing it.";
+  return null;
+}
+
 const MPESA_PLACEHOLDER =
   "UCURIAYGQL Confirmed. Ksh10.00 sent to CALVIN  OSORO 0758891491 on 30/3/26 at 2:19 PM. New M-PESA balance is Ksh450.33. Transaction cost, Ksh0.00. Amount you can transact within the day is 496,980.00. Earn interest daily on Ziidi MMF,Dial *334#";
 
@@ -150,10 +169,11 @@ export function StandardWizard() {
 
   const handleSubmit = async () => {
     clearError();
-    if (!mpesaMsg.trim() || mpesaMsg.trim().length < 20) {
-      setError("Please paste your M-Pesa confirmation message.");
-      return;
-    }
+
+    // Client-side validation first (mirrors server rules)
+    const clientErr = clientValidateMpesa(mpesaMsg);
+    if (clientErr) { setError(clientErr); return; }
+
     const parsed = parsePhoneNumber(phone)!;
     const payload = {
       name: name.trim(),
@@ -162,16 +182,27 @@ export function StandardWizard() {
       registrationType: "standard" as RegistrationInputRegistrationType,
       alsoRegisterStandard: false,
     };
+
     submitReg.mutate(
       { data: payload },
       {
         onSuccess: async (data: RegistrationResponse) => {
           const p = parsePhoneNumber(phone)!;
-          await paymentMutation.mutateAsync({
-            name: name.trim(),
-            phone: p.number.toString(),
-            mpesaMessage: mpesaMsg.trim(),
-          }).catch(() => {});
+          try {
+            await paymentMutation.mutateAsync({
+              name: name.trim(),
+              phone: p.number.toString(),
+              mpesaMessage: mpesaMsg.trim(),
+            });
+          } catch (err: unknown) {
+            // Server rejected the message — show the error and stay on step 3
+            const msg =
+              err instanceof Error
+                ? err.message
+                : "Payment validation failed. Check your M-Pesa message and try again.";
+            setError(msg);
+            return;
+          }
           playSuccessSound();
           localStorage.setItem("vcf_claim_standard", data.claimToken);
           localStorage.setItem("vcf_pending_type", "standard");
