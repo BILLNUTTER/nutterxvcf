@@ -63,8 +63,17 @@ export default function AdminPage() {
           login(data.token);
         }
       },
-      onError: () => {
-        setLoginError("ACCESS DENIED: Invalid credentials.");
+      onError: (err: Error) => {
+        const status = (err as { status?: number }).status;
+        if (status === 401) {
+          setLoginError("ACCESS DENIED: Invalid username or password.");
+        } else if (status === 500) {
+          setLoginError(`SERVER ERROR: ${err.message}. Check that ADMIN_USERNAME and ADMIN_PASSWORD are set in your deployment environment.`);
+        } else if (!status) {
+          setLoginError(`NETWORK ERROR: Could not reach API. ${err.message}`);
+        } else {
+          setLoginError(`ERROR ${status}: ${err.message}`);
+        }
       }
     }
   });
