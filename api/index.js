@@ -56080,18 +56080,30 @@ var paymentConfirmationsTable = pgTable("payment_confirmations", {
 
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
-var connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
+var rawConnectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
 var isSupabase = !process.env.DATABASE_URL && !!process.env.SUPABASE_DATABASE_URL;
-if (!connectionString) {
+if (!rawConnectionString) {
   console.warn(
-    "[db] WARNING: DATABASE_URL or SUPABASE_DATABASE_URL is not set. Database operations will fail. Set the variable and restart."
+    "[db] WARNING: DATABASE_URL or SUPABASE_DATABASE_URL is not set. Database operations will fail."
   );
 }
+function resolveConnectionString(url2, supabase) {
+  if (!supabase) return url2;
+  return url2.replace(
+    /(\.pooler\.supabase\.com):5432(\b)/g,
+    "$1:6543$2"
+  );
+}
+var connectionString = rawConnectionString ? resolveConnectionString(rawConnectionString, isSupabase) : "postgresql://localhost:5432/notconfigured";
+if (isSupabase && rawConnectionString && connectionString !== rawConnectionString) {
+  console.info("[db] Supabase pooler: switched from Session mode (5432) to Transaction mode (6543).");
+}
 var pool = new Pool3({
-  connectionString: connectionString ?? "postgresql://localhost:5432/notconfigured",
+  connectionString,
   ssl: isSupabase ? { rejectUnauthorized: false } : false,
-  // Small pool for Supabase (transaction pooler); generous for local Postgres.
-  max: isSupabase ? 3 : 10,
+  // Transaction mode: one connection per concurrent query is sufficient.
+  // Keep the pool tiny to stay well within Supabase's connection limits.
+  max: isSupabase ? 2 : 10,
   idleTimeoutMillis: isSupabase ? 1e4 : 3e4,
   connectionTimeoutMillis: 5e3
 });
