@@ -40606,6 +40606,115 @@ var pgTable = (name, columns, extraConfig) => {
   return pgTableWithSchema(name, columns, extraConfig, void 0);
 };
 
+// ../../node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/pg-core/indexes.js
+var IndexBuilderOn = class {
+  constructor(unique, name) {
+    this.unique = unique;
+    this.name = name;
+  }
+  static [entityKind] = "PgIndexBuilderOn";
+  on(...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      false,
+      this.name
+    );
+  }
+  onOnly(...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = it.defaultConfig;
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      true,
+      this.name
+    );
+  }
+  /**
+   * Specify what index method to use. Choices are `btree`, `hash`, `gist`, `spgist`, `gin`, `brin`, or user-installed access methods like `bloom`. The default method is `btree.
+   *
+   * If you have the `pg_vector` extension installed in your database, you can use the `hnsw` and `ivfflat` options, which are predefined types.
+   *
+   * **You can always specify any string you want in the method, in case Drizzle doesn't have it natively in its types**
+   *
+   * @param method The name of the index method to be used
+   * @param columns
+   * @returns
+   */
+  using(method, ...columns) {
+    return new IndexBuilder(
+      columns.map((it) => {
+        if (is(it, SQL)) {
+          return it;
+        }
+        it = it;
+        const clonedIndexedColumn = new IndexedColumn(it.name, !!it.keyAsName, it.columnType, it.indexConfig);
+        it.indexConfig = JSON.parse(JSON.stringify(it.defaultConfig));
+        return clonedIndexedColumn;
+      }),
+      this.unique,
+      true,
+      this.name,
+      method
+    );
+  }
+};
+var IndexBuilder = class {
+  static [entityKind] = "PgIndexBuilder";
+  /** @internal */
+  config;
+  constructor(columns, unique, only, name, method = "btree") {
+    this.config = {
+      name,
+      columns,
+      unique,
+      only,
+      method
+    };
+  }
+  concurrently() {
+    this.config.concurrently = true;
+    return this;
+  }
+  with(obj) {
+    this.config.with = obj;
+    return this;
+  }
+  where(condition) {
+    this.config.where = condition;
+    return this;
+  }
+  /** @internal */
+  build(table) {
+    return new Index(this.config, table);
+  }
+};
+var Index = class {
+  static [entityKind] = "PgIndex";
+  config;
+  constructor(config2, table) {
+    this.config = { ...config2, table };
+  }
+};
+function uniqueIndex(name) {
+  return new IndexBuilderOn(true, name);
+}
+
 // ../../node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/drizzle-orm/pg-core/primary-keys.js
 var PrimaryKeyBuilder = class {
   static [entityKind] = "PgPrimaryKeyBuilder";
@@ -56047,16 +56156,25 @@ var registrationTypeEnum = pgEnum("registration_type", [
   "standard",
   "bot"
 ]);
-var registrationsTable = pgTable("registrations", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  phone: text("phone").notNull(),
-  countryCode: text("country_code").notNull(),
-  status: statusEnum("status").notNull().default("pending"),
-  registrationType: registrationTypeEnum("registration_type").notNull(),
-  claimToken: text("claim_token").notNull().unique(),
-  createdAt: timestamp("created_at").notNull().defaultNow()
-});
+var registrationsTable = pgTable(
+  "registrations",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    countryCode: text("country_code").notNull(),
+    status: statusEnum("status").notNull().default("pending"),
+    registrationType: registrationTypeEnum("registration_type").notNull(),
+    claimToken: text("claim_token").notNull().unique(),
+    createdAt: timestamp("created_at").notNull().defaultNow()
+  },
+  (table) => [
+    uniqueIndex("registrations_phone_type_unique").on(
+      table.phone,
+      table.registrationType
+    )
+  ]
+);
 var insertRegistrationSchema = createInsertSchema(
   registrationsTable
 ).omit({ id: true, status: true, createdAt: true, claimToken: true });
@@ -56190,6 +56308,10 @@ router2.post("/register", async (req, res) => {
       crossClaimToken: secondaryClaimToken
     });
   } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err && err.code === "23505" && "constraint" in err && String(err.constraint).includes("phone_type")) {
+      res.status(409).json({ error: "already_registered", message: "This phone number is already registered for this VCF type." });
+      return;
+    }
     req.log.error({ err }, "Registration failed");
     res.status(500).json({ error: "server_error", message: "Registration failed" });
   }
@@ -56789,6 +56911,10 @@ router8.post("/bot-complete", async (req, res) => {
     await db.update(botVerifiedPhonesTable).set({ registrationId: reg.id }).where(eq(botVerifiedPhonesTable.phone, phone));
     res.status(201).json({ success: true, name: reg.name });
   } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err && err.code === "23505") {
+      res.status(409).json({ error: "already_registered", message: "This phone number is already registered." });
+      return;
+    }
     req.log.error({ err }, "bot-complete error");
     res.status(500).json({ error: "server_error", message: "Failed to complete registration" });
   }

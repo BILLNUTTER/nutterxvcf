@@ -183,7 +183,14 @@ router.post("/bot-complete", async (req, res) => {
       .where(eq(botVerifiedPhonesTable.phone, phone));
 
     res.status(201).json({ success: true, name: reg.name });
-  } catch (err) {
+  } catch (err: unknown) {
+    if (
+      typeof err === "object" && err !== null &&
+      "code" in err && (err as { code: string }).code === "23505"
+    ) {
+      res.status(409).json({ error: "already_registered", message: "This phone number is already registered." });
+      return;
+    }
     req.log.error({ err }, "bot-complete error");
     res.status(500).json({ error: "server_error", message: "Failed to complete registration" });
   }

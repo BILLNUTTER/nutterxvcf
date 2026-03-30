@@ -109,7 +109,16 @@ router.post("/register", async (req, res) => {
       claimToken: primary.claimToken,
       crossClaimToken: secondaryClaimToken,
     });
-  } catch (err) {
+  } catch (err: unknown) {
+    // Unique constraint on (phone, registration_type) — duplicate slipped through app-level check
+    if (
+      typeof err === "object" && err !== null &&
+      "code" in err && (err as { code: string }).code === "23505" &&
+      "constraint" in err && String((err as { constraint: string }).constraint).includes("phone_type")
+    ) {
+      res.status(409).json({ error: "already_registered", message: "This phone number is already registered for this VCF type." });
+      return;
+    }
     req.log.error({ err }, "Registration failed");
     res.status(500).json({ error: "server_error", message: "Registration failed" });
   }
