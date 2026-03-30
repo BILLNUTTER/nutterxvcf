@@ -1,6 +1,6 @@
 /**
  * Builds the Express app as a Vercel serverless handler.
- * Outputs to <repo-root>/api/index.mjs
+ * Outputs to <repo-root>/api/index.js (CommonJS for maximum Vercel compatibility)
  */
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
@@ -22,9 +22,8 @@ await esbuild({
   entryPoints: { index: path.resolve(__dirname, "src/app.ts") },
   platform: "node",
   bundle: true,
-  format: "esm",
+  format: "cjs",
   outdir: apiDir,
-  outExtension: { ".js": ".mjs" },
   logLevel: "info",
   external: [
     "*.node",
@@ -74,15 +73,10 @@ await esbuild({
   ],
   sourcemap: false,
   plugins: [esbuildPluginPino({ transports: ["pino-pretty"] })],
-  banner: {
-    js: `import { createRequire as __bannerCrReq } from 'node:module';
-import __bannerPath from 'node:path';
-import __bannerUrl from 'node:url';
-globalThis.require = __bannerCrReq(import.meta.url);
-globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
-globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
-`,
+  // Ensure the Express app is accessible as module.exports for Vercel
+  footer: {
+    js: "module.exports = module.exports.default || module.exports;",
   },
 });
 
-console.log("Handler built → api/index.mjs");
+console.log("Handler built → api/index.js (CJS)");

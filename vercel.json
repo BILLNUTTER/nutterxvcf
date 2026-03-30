@@ -4,8 +4,14 @@
   "buildCommand": "pnpm --filter @workspace/api-server run build:handler && BASE_PATH=/ pnpm --filter @workspace/vcf-app run build",
   "outputDirectory": "artifacts/vcf-app/dist/public",
   "framework": null,
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs20.x",
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/:path*", "destination": "/index.html" }
   ]
 }
