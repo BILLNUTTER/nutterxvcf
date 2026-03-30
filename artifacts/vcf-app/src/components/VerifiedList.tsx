@@ -1,8 +1,12 @@
 import type { VerifiedUser } from "@workspace/api-client-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { User, ShieldCheck, PauseCircle, Download } from "lucide-react";
+import { User, ShieldCheck, PauseCircle, Download, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
+
+type VerificationNote =
+  | { kind: "payment"; amount: string; contact: string }
+  | { kind: "free" };
 
 interface CapacityBarProps {
   title: string;
@@ -11,6 +15,7 @@ interface CapacityBarProps {
   accentColor: "primary" | "secondary";
   onDownloadVcf?: () => void;
   isTargetReached?: boolean;
+  verificationNote?: VerificationNote;
 }
 
 export function CapacityBar({
@@ -20,6 +25,7 @@ export function CapacityBar({
   accentColor,
   onDownloadVcf,
   isTargetReached = false,
+  verificationNote,
 }: CapacityBarProps) {
   const approvedCount = users.filter((u) => u.status === "approved").length;
   const progress = Math.min((approvedCount / targetCount) * 100, 100);
@@ -52,6 +58,36 @@ export function CapacityBar({
         <Progress value={progress} indicatorColor={bgIndicator} className="h-2" />
       </div>
 
+      {/* Verification requirement notice */}
+      {verificationNote && (
+        verificationNote.kind === "payment" ? (
+          <div className="flex items-start gap-2.5 rounded-lg bg-amber-500/10 border border-amber-500/40 px-3 py-2.5 text-amber-300">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+            <p className="text-xs font-mono leading-relaxed">
+              <span className="font-bold text-amber-300 uppercase tracking-wide">Verification Fee Required</span>
+              <br />
+              Send <span className="font-bold text-white">Ksh. {verificationNote.amount}</span> per number to admin via WhatsApp to complete verification after registration.
+              <br />
+              <a
+                href={`https://wa.me/${verificationNote.contact.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-amber-400 underline underline-offset-2 hover:text-amber-300 transition-colors"
+              >
+                {verificationNote.contact}
+              </a>
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/30 px-3 py-2 text-green-300">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-green-400" />
+            <p className="text-xs font-mono font-bold uppercase tracking-widest text-green-300">
+              Bot Owner Verification is FREE
+            </p>
+          </div>
+        )
+      )}
+
       {isTargetReached && onDownloadVcf && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -74,17 +110,51 @@ export function CapacityBar({
 interface UserDirectoryProps {
   users: VerifiedUser[];
   accentColor: "primary" | "secondary";
+  verificationNote?: VerificationNote;
 }
 
-export function UserDirectory({ users, accentColor }: UserDirectoryProps) {
+export function UserDirectory({ users, accentColor, verificationNote }: UserDirectoryProps) {
   const borderClass = accentColor === "primary" ? "border-primary/30" : "border-secondary/30";
   const iconColor = accentColor === "primary" ? "text-primary" : "text-secondary";
 
   return (
     <div className={`p-5 rounded-xl border ${borderClass} bg-black/40 backdrop-blur-md`}>
-      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 border-b border-border/50 pb-2">
-        Verified Directory
-      </h4>
+      <div className="flex items-center justify-between mb-3 border-b border-border/50 pb-2">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          Verified Directory
+        </h4>
+        {verificationNote && (
+          verificationNote.kind === "payment" ? (
+            <span className="flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5">
+              <AlertTriangle className="w-3 h-3" />
+              Ksh. {verificationNote.amount} fee
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-green-400 bg-green-500/10 border border-green-500/30 rounded-full px-2 py-0.5">
+              <CheckCircle2 className="w-3 h-3" />
+              FREE
+            </span>
+          )
+        )}
+      </div>
+
+      {/* Directory-level verification reminder */}
+      {verificationNote?.kind === "payment" && (
+        <p className="text-[11px] font-mono text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1.5 mb-3 leading-snug">
+          These members confirmed by sending <span className="font-bold text-amber-300">Ksh. {verificationNote.amount}</span> to admin.
+          Send yours to{" "}
+          <a
+            href={`https://wa.me/${verificationNote.contact.replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-amber-400 underline underline-offset-1 hover:text-amber-300"
+          >
+            {verificationNote.contact}
+          </a>{" "}
+          to join.
+        </p>
+      )}
+
       {users.length === 0 ? (
         <p className="text-center text-muted-foreground text-sm py-6 font-mono">
           NO VERIFIED USERS YET
@@ -101,7 +171,7 @@ export function UserDirectory({ users, accentColor }: UserDirectoryProps) {
             >
               <div className="flex items-center gap-2 min-w-0">
                 {user.status === "suspended" ? (
-                  <PauseCircle className={`w-4 h-4 shrink-0 text-yellow-400`} />
+                  <PauseCircle className="w-4 h-4 shrink-0 text-yellow-400" />
                 ) : (
                   <ShieldCheck className={`w-4 h-4 shrink-0 ${iconColor}`} />
                 )}

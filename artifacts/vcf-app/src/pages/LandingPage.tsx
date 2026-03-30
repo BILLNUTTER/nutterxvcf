@@ -147,6 +147,7 @@ export default function LandingPage() {
               accentColor="primary"
               isTargetReached={stdTargetReached}
               onDownloadVcf={stdTargetReached ? () => downloadVcf("standard") : undefined}
+              verificationNote={{ kind: "payment", amount: "10", contact: "+254713881613" }}
             />
           </div>
 
@@ -176,6 +177,7 @@ export default function LandingPage() {
               accentColor="secondary"
               isTargetReached={botTargetReached}
               onDownloadVcf={botTargetReached ? () => downloadVcf("bot") : undefined}
+              verificationNote={{ kind: "free" }}
             />
           </div>
 
@@ -195,6 +197,7 @@ export default function LandingPage() {
             <UserDirectory
               users={stdUsers}
               accentColor="primary"
+              verificationNote={{ kind: "payment", amount: "10", contact: "+254713881613" }}
             />
           </div>
 
@@ -203,6 +206,7 @@ export default function LandingPage() {
             <UserDirectory
               users={botUsers}
               accentColor="secondary"
+              verificationNote={{ kind: "free" }}
             />
           </div>
 
