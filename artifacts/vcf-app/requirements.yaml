@@ -1,0 +1,20 @@
+packages:
+  "framer-motion": "For lively, cyberpunk-style page transitions and interactive element animations"
+  "react-phone-number-input": "For country flag selection and strict phone number validation"
+  "@hookform/resolvers": "For Zod form validation"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for intelligently merging tailwind classes"
+  "date-fns": "For formatting registration dates in the admin dashboard"
+
+images:
+  - path: "artifacts/vcf-app/public/images/hero-bg.png"
+    description: "Dark cyberpunk grid background with glowing neon green and cyan circuit lines, abstract, highly detailed, atmospheric"
+    aspect_ratio: "16:9"
+  - path: "artifacts/vcf-app/public/images/logo.png"
+    description: "Futuristic Nutterx VCF system logo mark, sharp geometric shapes, neon green and cyan glow on transparent background"
+    aspect_ratio: "1:1"
+
+notes:
+  - Wouter uses useSearch to intercept ?admin=true for the Admin dashboard routing
+  - Admin login token is persisted in localStorage and passed via x-admin-token header
+  - Auto-redirect for verified users relies on checking their submitted name against the public verified list

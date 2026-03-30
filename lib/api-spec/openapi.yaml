@@ -1,22 +1,24 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Nutterx VCF Verification System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: registrations
+    description: VCF registration operations
+  - name: admin
+    description: Admin operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,7 +26,155 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /register:
+    post:
+      operationId: submitRegistration
+      tags: [registrations]
+      summary: Submit a VCF registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistrationInput"
+      responses:
+        "201":
+          description: Registration submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/verified:
+    get:
+      operationId: getVerifiedUsers
+      tags: [registrations]
+      summary: Get all verified users grouped by type
+      responses:
+        "200":
+          description: List of verified users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifiedUsersResponse"
+
+  /admin/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/registrations:
+    get:
+      operationId: getAdminRegistrations
+      tags: [admin]
+      summary: Get all registrations (admin only)
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [standard, bot]
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        "200":
+          description: All registrations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRegistrationsResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/registrations/{id}:
+    patch:
+      operationId: updateRegistrationStatus
+      tags: [admin]
+      summary: Approve or reject a registration
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusInput"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Registration"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
+  securitySchemes:
+    AdminAuth:
+      type: apiKey
+      in: header
+      name: x-admin-token
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +184,136 @@ components:
       required:
         - status
 
+    RegistrationInput:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        countryCode:
+          type: string
+        registrationType:
+          type: string
+          enum: [standard, bot]
+        alsoRegisterStandard:
+          type: boolean
+          description: If registering as bot, also register for standard VCF
+      required:
+        - name
+        - phone
+        - countryCode
+        - registrationType
+
+    Registration:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        countryCode:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        registrationType:
+          type: string
+          enum: [standard, bot]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - phone
+        - countryCode
+        - status
+        - registrationType
+        - createdAt
+
+    VerifiedUsersResponse:
+      type: object
+      properties:
+        standard:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerifiedUser"
+        bot:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerifiedUser"
+      required:
+        - standard
+        - bot
+
+    VerifiedUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        registrationType:
+          type: string
+          enum: [standard, bot]
+      required:
+        - id
+        - name
+        - registrationType
+
+    AdminLoginInput:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    AdminLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        token:
+          type: string
+      required:
+        - success
+        - token
+
+    AdminRegistrationsResponse:
+      type: object
+      properties:
+        registrations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Registration"
+        total:
+          type: integer
+      required:
+        - registrations
+        - total
+
+    UpdateStatusInput:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
