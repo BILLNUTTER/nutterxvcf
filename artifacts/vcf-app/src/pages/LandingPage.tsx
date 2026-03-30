@@ -212,8 +212,8 @@ export default function LandingPage() {
               <div className="flex items-center gap-2 rounded-lg bg-primary/8 border border-primary/25 px-4 py-2.5">
                 <ShieldAlert className="w-4 h-4 text-primary shrink-0" />
                 <p className="text-xs font-mono text-white/80">
-                  Pay <span className="font-bold text-primary">Ksh. 10</span> to get verified — M-Pesa admin:{" "}
-                  <span className="font-bold text-white tracking-wide">BILLnutter001002</span>
+                  Pay <span className="font-bold text-primary">Ksh. 10</span> via M-Pesa to get verified — then submit proof in the{" "}
+                  <span className="font-bold text-white">Payment</span> tab
                 </p>
               </div>
 
