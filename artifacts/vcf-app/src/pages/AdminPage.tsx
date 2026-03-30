@@ -410,7 +410,7 @@ function BotVerifierPanel({ token, onAuthError }: { token: string; onAuthError: 
             <label className="text-xs font-bold font-mono text-secondary tracking-widest">ADD VERIFIED BOT NUMBER</label>
             <input
               type="text"
-              placeholder="e.g. +254712345678 or 0712345678"
+              placeholder="e.g. 0712345678 or 712345678"
               value={newPhone}
               onChange={(e) => setNewPhone(e.target.value)}
               className="w-full h-10 rounded-md border-2 border-secondary/40 bg-black/40 px-3 font-mono text-sm text-white placeholder:text-white/25 focus:border-secondary focus:outline-none focus:shadow-[0_0_10px_hsl(var(--secondary)/0.3)] transition-all"

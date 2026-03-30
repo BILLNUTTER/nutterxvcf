@@ -56658,8 +56658,12 @@ function normalisePhone(raw) {
   const trimmed = raw.replace(/\s+/g, "").trim();
   if (E164_REGEX2.test(trimmed)) return trimmed;
   const digits = trimmed.replace(/\D/g, "");
-  if (digits.startsWith("0") && digits.length === 10) return `+254${digits.slice(1)}`;
-  if (digits.startsWith("254") && digits.length === 12) return `+${digits}`;
+  if (digits.startsWith("0") && digits.length === 10)
+    return `+254${digits.slice(1)}`;
+  if (digits.startsWith("254") && digits.length === 12)
+    return `+${digits}`;
+  if (digits.length === 9)
+    return `+254${digits}`;
   return trimmed;
 }
 router8.post("/admin/bot-verify", requireAdmin, async (req, res) => {
@@ -56670,7 +56674,7 @@ router8.post("/admin/bot-verify", requireAdmin, async (req, res) => {
   }
   const phone = normalisePhone(parsed.data.phone);
   if (!E164_REGEX2.test(phone)) {
-    res.status(400).json({ error: "validation_error", message: "Phone must be in E.164 format (e.g. +254712345678)" });
+    res.status(400).json({ error: "validation_error", message: "Invalid phone number. Enter it as 0712345678 or 712345678 \u2014 no need for country code." });
     return;
   }
   try {
