@@ -13,4 +13,5 @@ export const GetAdminRegistrationsStatus = {
   pending: "pending",
   approved: "approved",
   rejected: "rejected",
+  suspended: "suspended",
 } as const;

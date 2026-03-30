@@ -6,6 +6,7 @@ export const statusEnum = pgEnum("registration_status", [
   "pending",
   "approved",
   "rejected",
+  "suspended",
 ]);
 
 export const registrationTypeEnum = pgEnum("registration_type", [

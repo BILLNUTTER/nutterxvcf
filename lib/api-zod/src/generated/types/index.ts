@@ -9,6 +9,7 @@
 export * from "./adminLoginInput";
 export * from "./adminLoginResponse";
 export * from "./adminRegistrationsResponse";
+export * from "./deleteRegistrationResponse";
 export * from "./errorResponse";
 export * from "./getAdminRegistrationsParams";
 export * from "./getAdminRegistrationsStatus";
@@ -27,3 +28,4 @@ export * from "./updateStatusInputStatus";
 export * from "./verifiedUser";
 export * from "./verifiedUserRegistrationType";
 export * from "./verifiedUsersResponse";
+export * from "./verifiedUserStatus";

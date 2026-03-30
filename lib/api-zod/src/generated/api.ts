@@ -25,11 +25,11 @@ export const SubmitRegistrationBody = zod.object({
   alsoRegisterStandard: zod
     .boolean()
     .optional()
-    .describe("If registering as bot, also register for standard VCF"),
+    .describe("Also register for the other VCF type"),
 });
 
 /**
- * @summary Get all verified users grouped by type
+ * @summary Get all verified and suspended users grouped by type
  */
 export const GetVerifiedUsersResponse = zod.object({
   standard: zod.array(
@@ -37,6 +37,7 @@ export const GetVerifiedUsersResponse = zod.object({
       id: zod.number(),
       name: zod.string(),
       registrationType: zod.enum(["standard", "bot"]),
+      status: zod.enum(["approved", "suspended"]),
     }),
   ),
   bot: zod.array(
@@ -44,6 +45,7 @@ export const GetVerifiedUsersResponse = zod.object({
       id: zod.number(),
       name: zod.string(),
       registrationType: zod.enum(["standard", "bot"]),
+      status: zod.enum(["approved", "suspended"]),
     }),
   ),
 });
@@ -66,7 +68,7 @@ export const AdminLoginResponse = zod.object({
  */
 export const GetAdminRegistrationsQueryParams = zod.object({
   type: zod.enum(["standard", "bot"]).optional(),
-  status: zod.enum(["pending", "approved", "rejected"]).optional(),
+  status: zod.enum(["pending", "approved", "rejected", "suspended"]).optional(),
 });
 
 export const GetAdminRegistrationsResponse = zod.object({
@@ -76,7 +78,7 @@ export const GetAdminRegistrationsResponse = zod.object({
       name: zod.string(),
       phone: zod.string(),
       countryCode: zod.string(),
-      status: zod.enum(["pending", "approved", "rejected"]),
+      status: zod.enum(["pending", "approved", "rejected", "suspended"]),
       registrationType: zod.enum(["standard", "bot"]),
       createdAt: zod.coerce.date(),
     }),
@@ -85,14 +87,14 @@ export const GetAdminRegistrationsResponse = zod.object({
 });
 
 /**
- * @summary Approve or reject a registration
+ * @summary Update a registration status
  */
 export const UpdateRegistrationStatusParams = zod.object({
   id: zod.coerce.number(),
 });
 
 export const UpdateRegistrationStatusBody = zod.object({
-  status: zod.enum(["approved", "rejected"]),
+  status: zod.enum(["approved", "rejected", "suspended"]),
 });
 
 export const UpdateRegistrationStatusResponse = zod.object({
@@ -100,7 +102,19 @@ export const UpdateRegistrationStatusResponse = zod.object({
   name: zod.string(),
   phone: zod.string(),
   countryCode: zod.string(),
-  status: zod.enum(["pending", "approved", "rejected"]),
+  status: zod.enum(["pending", "approved", "rejected", "suspended"]),
   registrationType: zod.enum(["standard", "bot"]),
   createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Permanently delete a registration
+ */
+export const DeleteRegistrationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteRegistrationResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
 });

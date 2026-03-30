@@ -22,7 +22,7 @@ export interface RegistrationInput {
   phone: string;
   countryCode: string;
   registrationType: RegistrationInputRegistrationType;
-  /** If registering as bot, also register for standard VCF */
+  /** Also register for the other VCF type */
   alsoRegisterStandard?: boolean;
 }
 
@@ -33,6 +33,7 @@ export const RegistrationStatus = {
   pending: "pending",
   approved: "approved",
   rejected: "rejected",
+  suspended: "suspended",
 } as const;
 
 export type RegistrationRegistrationType =
@@ -68,6 +69,7 @@ export const RegistrationResponseStatus = {
   pending: "pending",
   approved: "approved",
   rejected: "rejected",
+  suspended: "suspended",
 } as const;
 
 /**
@@ -92,10 +94,19 @@ export const VerifiedUserRegistrationType = {
   bot: "bot",
 } as const;
 
+export type VerifiedUserStatus =
+  (typeof VerifiedUserStatus)[keyof typeof VerifiedUserStatus];
+
+export const VerifiedUserStatus = {
+  approved: "approved",
+  suspended: "suspended",
+} as const;
+
 export interface VerifiedUser {
   id: number;
   name: string;
   registrationType: VerifiedUserRegistrationType;
+  status: VerifiedUserStatus;
 }
 
 export interface VerifiedUsersResponse {
@@ -124,10 +135,16 @@ export type UpdateStatusInputStatus =
 export const UpdateStatusInputStatus = {
   approved: "approved",
   rejected: "rejected",
+  suspended: "suspended",
 } as const;
 
 export interface UpdateStatusInput {
   status: UpdateStatusInputStatus;
+}
+
+export interface DeleteRegistrationResponse {
+  success: boolean;
+  message: string;
 }
 
 export interface ErrorResponse {
@@ -155,4 +172,5 @@ export const GetAdminRegistrationsStatus = {
   pending: "pending",
   approved: "approved",
   rejected: "rejected",
+  suspended: "suspended",
 } as const;

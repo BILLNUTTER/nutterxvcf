@@ -64,14 +64,22 @@ A full-stack registration and admin verification platform for VCF (Virtual Conta
 - `GET /api/admin/registrations` — All registrations (requires `x-admin-token` header)
 - `PATCH /api/admin/registrations/:id` — Approve/reject a registration (requires `x-admin-token` header)
 
+### Admin Actions
+- **Approve** pending registrations → user can then get the WhatsApp group redirect link
+- **Reject** pending registrations → user is blocked
+- **Suspend** approved users → user stays visible in the public VCF directory (with "SUSPENDED" badge), cannot get redirect link, and cannot re-register with the same phone number
+- **Restore** suspended users back to approved status
+- **Delete** permanently removes a registration; the phone number can be used to register again
+
 ### Security Model
 - Group links are **never** publicly exposed; only returned by `/api/redirect` after server-side approval check
 - Each registration receives a unique cryptographic `claimToken` (64 hex chars); only the original registrant can retrieve the redirect link
 - Phone numbers validated to E.164 format on both client (react-phone-number-input) and server
 - Admin tokens expire after 8 hours; expired tokens are pruned on each login
+- Suspended phones receive a distinct 403 error on registration attempts
 
 ### Database Schema
-- **registrations** table: id, name, phone, country_code, status (pending/approved/rejected), registration_type (standard/bot), claim_token (unique, 64 hex chars), created_at
+- **registrations** table: id, name, phone, country_code, status (pending/approved/rejected/suspended), registration_type (standard/bot), claim_token (unique, 64 hex chars), created_at
 
 ## TypeScript & Composite Projects
 

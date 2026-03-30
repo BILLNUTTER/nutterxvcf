@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useAdminLogin, useGetAdminRegistrations, useUpdateRegistrationStatus, getGetAdminRegistrationsQueryKey } from "@workspace/api-client-react";
+import {
+  useAdminLogin,
+  useGetAdminRegistrations,
+  useUpdateRegistrationStatus,
+  useDeleteRegistration,
+  getGetAdminRegistrationsQueryKey,
+} from "@workspace/api-client-react";
 import type { GetAdminRegistrationsType } from "@workspace/api-client-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Lock, CheckCircle, XCircle, LogOut } from "lucide-react";
+import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -52,15 +58,15 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
-              <Input 
-                placeholder="USERNAME" 
+              <Input
+                placeholder="USERNAME"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="font-mono text-center tracking-widest"
               />
-              <Input 
-                type="password" 
-                placeholder="PASSWORD" 
+              <Input
+                type="password"
+                placeholder="PASSWORD"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="font-mono text-center tracking-widest"
@@ -100,7 +106,7 @@ export default function AdminPage() {
             <TabsTrigger value="standard">Standard VCF</TabsTrigger>
             <TabsTrigger value="bot">Bot VCF</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="standard" className="mt-0">
             <RegistrationTable type="standard" token={token!} />
           </TabsContent>
@@ -113,25 +119,49 @@ export default function AdminPage() {
   );
 }
 
-function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType, token: string }) {
+function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType; token: string }) {
   const queryClient = useQueryClient();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
   const { data, isLoading } = useGetAdminRegistrations(
     { type },
-    { request: { headers: { "x-admin-token": token } }, query: { queryKey: getGetAdminRegistrationsQueryKey({ type }), refetchInterval: 5000 } }
+    {
+      request: { headers: { "x-admin-token": token } },
+      query: { queryKey: getGetAdminRegistrationsQueryKey({ type }), refetchInterval: 5000 },
+    }
   );
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/registrations"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/users/verified"] });
+  };
 
   const updateMutation = useUpdateRegistrationStatus({
     request: { headers: { "x-admin-token": token } },
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/admin/registrations"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/users/verified"] });
-      }
-    }
+    mutation: { onSuccess: invalidateAll },
   });
 
-  const handleUpdate = (id: number, status: "approved" | "rejected") => {
+  const deleteMutation = useDeleteRegistration({
+    request: { headers: { "x-admin-token": token } },
+    mutation: {
+      onSuccess: () => {
+        setConfirmDeleteId(null);
+        invalidateAll();
+      },
+    },
+  });
+
+  const handleUpdate = (id: number, status: "approved" | "rejected" | "suspended") => {
     updateMutation.mutate({ id, data: { status } });
+  };
+
+  const handleDelete = (id: number) => {
+    if (confirmDeleteId === id) {
+      deleteMutation.mutate({ id });
+    } else {
+      setConfirmDeleteId(id);
+      setTimeout(() => setConfirmDeleteId(null), 4000);
+    }
   };
 
   if (isLoading) {
@@ -141,10 +171,10 @@ function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType, t
   const registrations = data?.registrations || [];
 
   return (
-    <Card className={`border-t-4 ${type === 'standard' ? 'border-t-primary' : 'border-t-secondary'} bg-black/40`}>
+    <Card className={`border-t-4 ${type === "standard" ? "border-t-primary" : "border-t-secondary"} bg-black/40`}>
       <CardHeader>
         <CardTitle className="text-xl">
-          {type === 'standard' ? 'Standard Protocol Log' : 'Bot Owner Protocol Log'}
+          {type === "standard" ? "Standard Protocol Log" : "Bot Owner Protocol Log"}
         </CardTitle>
         <CardDescription>Total Entries: {data?.total || 0}</CardDescription>
       </CardHeader>
@@ -154,57 +184,96 @@ function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType, t
             NO RECORDS FOUND FOR THIS CATEGORY
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Target ID</TableHead>
-                <TableHead>Identity</TableHead>
-                <TableHead>Comlink</TableHead>
-                <TableHead>Zone</TableHead>
-                <TableHead>Timestamp</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Overrides</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {registrations.map((reg) => (
-                <TableRow key={reg.id}>
-                  <TableCell className="font-mono text-muted-foreground">#{reg.id.toString().padStart(4, '0')}</TableCell>
-                  <TableCell className="font-bold text-white">{reg.name}</TableCell>
-                  <TableCell className="font-mono">{reg.phone}</TableCell>
-                  <TableCell className="font-mono text-muted-foreground">{reg.countryCode}</TableCell>
-                  <TableCell className="font-mono text-xs">{format(new Date(reg.createdAt), 'yyyy-MM-dd HH:mm')}</TableCell>
-                  <TableCell>
-                    <Badge variant={reg.status}>{reg.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    {reg.status === 'pending' && (
-                      <>
-                        <Button 
-                          size="sm" 
-                          variant="default" 
-                          className="h-8 px-2 bg-green-600 hover:bg-green-500 shadow-[0_0_10px_rgba(22,163,74,0.5)]"
-                          onClick={() => handleUpdate(reg.id, "approved")}
-                          disabled={updateMutation.isPending}
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" /> ALLOW
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive" 
-                          className="h-8 px-2"
-                          onClick={() => handleUpdate(reg.id, "rejected")}
-                          disabled={updateMutation.isPending}
-                        >
-                          <XCircle className="w-4 h-4 mr-1" /> DENY
-                        </Button>
-                      </>
-                    )}
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Target ID</TableHead>
+                  <TableHead>Identity</TableHead>
+                  <TableHead>Comlink</TableHead>
+                  <TableHead>Zone</TableHead>
+                  <TableHead>Timestamp</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right min-w-[260px]">Overrides</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {registrations.map((reg) => (
+                  <TableRow key={reg.id} className={reg.status === "suspended" ? "opacity-60" : ""}>
+                    <TableCell className="font-mono text-muted-foreground">#{reg.id.toString().padStart(4, "0")}</TableCell>
+                    <TableCell className={`font-bold ${reg.status === "suspended" ? "line-through text-muted-foreground" : "text-white"}`}>
+                      {reg.name}
+                    </TableCell>
+                    <TableCell className="font-mono">{reg.phone}</TableCell>
+                    <TableCell className="font-mono text-muted-foreground">{reg.countryCode}</TableCell>
+                    <TableCell className="font-mono text-xs">{format(new Date(reg.createdAt), "yyyy-MM-dd HH:mm")}</TableCell>
+                    <TableCell>
+                      <Badge variant={reg.status as "pending" | "approved" | "rejected" | "suspended"}>{reg.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1 flex-wrap">
+                        {reg.status === "pending" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-8 px-2 bg-green-600 hover:bg-green-500 shadow-[0_0_10px_rgba(22,163,74,0.5)]"
+                              onClick={() => handleUpdate(reg.id, "approved")}
+                              disabled={updateMutation.isPending}
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" /> ALLOW
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-8 px-2"
+                              onClick={() => handleUpdate(reg.id, "rejected")}
+                              disabled={updateMutation.isPending}
+                            >
+                              <XCircle className="w-4 h-4 mr-1" /> DENY
+                            </Button>
+                          </>
+                        )}
+                        {reg.status === "approved" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10"
+                            onClick={() => handleUpdate(reg.id, "suspended")}
+                            disabled={updateMutation.isPending}
+                          >
+                            <PauseCircle className="w-4 h-4 mr-1" /> SUSPEND
+                          </Button>
+                        )}
+                        {reg.status === "suspended" && (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-8 px-2 bg-green-600 hover:bg-green-500"
+                            onClick={() => handleUpdate(reg.id, "approved")}
+                            disabled={updateMutation.isPending}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" /> RESTORE
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant={confirmDeleteId === reg.id ? "destructive" : "ghost"}
+                          className={`h-8 px-2 ${confirmDeleteId === reg.id ? "animate-pulse" : "text-destructive/70 hover:text-destructive hover:bg-destructive/10"}`}
+                          onClick={() => handleDelete(reg.id)}
+                          disabled={deleteMutation.isPending}
+                          title={confirmDeleteId === reg.id ? "Click again to confirm deletion" : "Delete permanently"}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          {confirmDeleteId === reg.id ? "CONFIRM?" : "DELETE"}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
     </Card>

@@ -5,7 +5,7 @@ import {
   SubmitRegistrationBody,
   GetVerifiedUsersResponse,
 } from "@workspace/api-zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import crypto from "crypto";
 
 const E164_REGEX = /^\+[1-9]\d{7,14}$/;
@@ -47,9 +47,12 @@ router.post("/register", async (req, res) => {
       );
 
     if (existing.length > 0) {
-      res
-        .status(409)
-        .json({ error: "already_registered", message: "This phone number is already registered for this VCF type." });
+      const isSuspended = existing.some((r) => r.status === "suspended");
+      if (isSuspended) {
+        res.status(403).json({ error: "suspended", message: "This phone number has been suspended and cannot re-register." });
+      } else {
+        res.status(409).json({ error: "already_registered", message: "This phone number is already registered for this VCF type." });
+      }
       return;
     }
 
@@ -119,9 +122,15 @@ router.get("/users/verified", async (req, res) => {
         id: registrationsTable.id,
         name: registrationsTable.name,
         registrationType: registrationsTable.registrationType,
+        status: registrationsTable.status,
       })
       .from(registrationsTable)
-      .where(eq(registrationsTable.status, "approved"));
+      .where(
+        or(
+          eq(registrationsTable.status, "approved"),
+          eq(registrationsTable.status, "suspended"),
+        ),
+      );
 
     const standard = all.filter((u) => u.registrationType === "standard");
     const bot = all.filter((u) => u.registrationType === "bot");

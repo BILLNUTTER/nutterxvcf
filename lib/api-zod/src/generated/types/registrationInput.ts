@@ -12,6 +12,6 @@ export interface RegistrationInput {
   phone: string;
   countryCode: string;
   registrationType: RegistrationInputRegistrationType;
-  /** If registering as bot, also register for standard VCF */
+  /** Also register for the other VCF type */
   alsoRegisterStandard?: boolean;
 }

@@ -7,6 +7,7 @@ import {
   GetAdminRegistrationsResponse,
   UpdateRegistrationStatusBody,
   UpdateRegistrationStatusParams,
+  DeleteRegistrationParams,
 } from "@workspace/api-zod";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
@@ -83,7 +84,7 @@ router.get("/admin/registrations", requireAdmin, async (req, res) => {
     if (type === "standard" || type === "bot") {
       conditions.push(eq(registrationsTable.registrationType, type));
     }
-    if (status === "pending" || status === "approved" || status === "rejected") {
+    if (status === "pending" || status === "approved" || status === "rejected" || status === "suspended") {
       conditions.push(eq(registrationsTable.status, status));
     }
 
@@ -142,6 +143,33 @@ router.patch("/admin/registrations/:id", requireAdmin, async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update registration");
     res.status(500).json({ error: "server_error", message: "Failed to update registration" });
+  }
+});
+
+router.delete("/admin/registrations/:id", requireAdmin, async (req, res) => {
+  const paramsParsed = DeleteRegistrationParams.safeParse({ id: Number(req.params.id) });
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "validation_error", message: "Invalid id" });
+    return;
+  }
+
+  const { id } = paramsParsed.data;
+
+  try {
+    const [deleted] = await db
+      .delete(registrationsTable)
+      .where(eq(registrationsTable.id, id))
+      .returning();
+
+    if (!deleted) {
+      res.status(404).json({ error: "not_found", message: "Registration not found" });
+      return;
+    }
+
+    res.json({ success: true, message: `Registration #${id} permanently deleted` });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete registration");
+    res.status(500).json({ error: "server_error", message: "Failed to delete registration" });
   }
 });
 

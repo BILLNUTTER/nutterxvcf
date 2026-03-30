@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { VerifiedUserRegistrationType } from "./verifiedUserRegistrationType";
+import type { VerifiedUserStatus } from "./verifiedUserStatus";
 
 export interface VerifiedUser {
   id: number;
   name: string;
   registrationType: VerifiedUserRegistrationType;
+  status: VerifiedUserStatus;
 }

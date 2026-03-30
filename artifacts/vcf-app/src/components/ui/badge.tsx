@@ -17,6 +17,7 @@ const badgeVariants = cva(
         pending: "border-transparent bg-yellow-500 text-black shadow hover:bg-yellow-500/80 drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]",
         approved: "border-transparent bg-primary text-black shadow hover:bg-primary/80 drop-shadow-[0_0_5px_hsl(var(--primary)/0.5)]",
         rejected: "border-transparent bg-destructive text-white shadow hover:bg-destructive/80 drop-shadow-[0_0_5px_hsl(var(--destructive)/0.5)]",
+        suspended: "border-transparent bg-yellow-600/80 text-white shadow hover:bg-yellow-600/60 drop-shadow-[0_0_5px_rgba(161,98,7,0.5)]",
       },
     },
     defaultVariants: {

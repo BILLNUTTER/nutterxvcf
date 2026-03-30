@@ -62,10 +62,10 @@ paths:
     get:
       operationId: getVerifiedUsers
       tags: [registrations]
-      summary: Get all verified users grouped by type
+      summary: Get all verified and suspended users grouped by type
       responses:
         "200":
-          description: List of verified users
+          description: List of verified/suspended users
           content:
             application/json:
               schema:
@@ -115,7 +115,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [pending, approved, rejected]
+            enum: [pending, approved, rejected, suspended]
       responses:
         "200":
           description: All registrations
@@ -134,7 +134,7 @@ paths:
     patch:
       operationId: updateRegistrationStatus
       tags: [admin]
-      summary: Approve or reject a registration
+      summary: Update a registration status
       security:
         - AdminAuth: []
       parameters:
@@ -156,6 +156,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Registration"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteRegistration
+      tags: [admin]
+      summary: Permanently delete a registration
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Registration deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteRegistrationResponse"
         "401":
           description: Unauthorized
           content:
@@ -198,7 +229,7 @@ components:
           enum: [standard, bot]
         alsoRegisterStandard:
           type: boolean
-          description: If registering as bot, also register for standard VCF
+          description: Also register for the other VCF type
       required:
         - name
         - phone
@@ -218,7 +249,7 @@ components:
           type: string
         status:
           type: string
-          enum: [pending, approved, rejected]
+          enum: [pending, approved, rejected, suspended]
         registrationType:
           type: string
           enum: [standard, bot]
@@ -247,7 +278,7 @@ components:
           enum: [standard, bot]
         status:
           type: string
-          enum: [pending, approved, rejected]
+          enum: [pending, approved, rejected, suspended]
         claimToken:
           type: string
           description: Opaque 64-hex-char token that proves registration ownership. Store client-side; required for /redirect.
@@ -286,10 +317,14 @@ components:
         registrationType:
           type: string
           enum: [standard, bot]
+        status:
+          type: string
+          enum: [approved, suspended]
       required:
         - id
         - name
         - registrationType
+        - status
 
     AdminLoginInput:
       type: object
@@ -331,9 +366,20 @@ components:
       properties:
         status:
           type: string
-          enum: [approved, rejected]
+          enum: [approved, rejected, suspended]
       required:
         - status
+
+    DeleteRegistrationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
 
     ErrorResponse:
       type: object
