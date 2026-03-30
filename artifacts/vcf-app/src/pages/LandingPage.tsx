@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useGetVerifiedUsers, getGetVerifiedUsersQueryKey } from "@workspace/api-client-react";
-import { RegistrationForm } from "@/components/RegistrationForm";
-import { PaymentConfirmationForm } from "@/components/PaymentConfirmationForm";
+import { StandardWizard } from "@/components/StandardWizard";
+import { BotFlow } from "@/components/BotFlow";
 import { CapacityBar, UserDirectory } from "@/components/VerifiedList";
 import {
   Activity,
   ShieldAlert,
   Smartphone,
-  CreditCard,
   ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -45,7 +44,7 @@ function downloadVcf(type: "standard" | "bot") {
   window.open(`/api/vcf/download?type=${type}`, "_blank");
 }
 
-type Tab = "standard" | "bot" | "payment";
+type Tab = "standard" | "bot";
 
 const TABS: { id: Tab; label: string; shortLabel: string; icon: React.ReactNode; accent: string; border: string; glow: string }[] = [
   {
@@ -65,15 +64,6 @@ const TABS: { id: Tab; label: string; shortLabel: string; icon: React.ReactNode;
     accent: "text-secondary",
     border: "border-secondary",
     glow: "shadow-[0_0_20px_hsl(var(--secondary)/0.4)]",
-  },
-  {
-    id: "payment",
-    label: "Payment Proof",
-    shortLabel: "Payment",
-    icon: <CreditCard className="w-5 h-5" />,
-    accent: "text-amber-400",
-    border: "border-amber-500",
-    glow: "shadow-[0_0_20px_rgba(251,191,36,0.35)]",
   },
 ];
 
@@ -158,7 +148,7 @@ export default function LandingPage() {
           </div>
         </header>
 
-        {/* ── Hero Tab Switcher ── */}
+        {/* ── Tab Switcher ── */}
         <div className="flex gap-3 mb-8">
           {TABS.map((tab) => {
             const active = activeTab === tab.id;
@@ -209,23 +199,9 @@ export default function LandingPage() {
                 onDownloadVcf={stdTargetReached ? () => downloadVcf("standard") : undefined}
               />
 
-              <div className="flex items-center gap-2 rounded-lg bg-primary/8 border border-primary/25 px-4 py-2.5">
-                <ShieldAlert className="w-4 h-4 text-primary shrink-0" />
-                <p className="text-xs font-mono text-white/80">
-                  Pay <span className="font-bold text-primary">Ksh. 10</span> via M-Pesa to get verified — then submit proof in the{" "}
-                  <span className="font-bold text-white">Payment</span> tab
-                </p>
-              </div>
+              <StandardWizard />
 
-              <RegistrationForm
-                type="standard"
-                title="Standard Registration"
-                description="Join the massive global VCF network. Fill your details to get verified."
-                crossRegisterLabel="Also initialize WhatsApp Bot VCF registration"
-                accentColor="primary"
-              />
-
-              {/* Standard-only directory */}
+              {/* Standard directory */}
               <div className="space-y-2 mt-4">
                 <div className="flex items-center gap-2 px-1">
                   <ShieldAlert className="w-4 h-4 text-primary" />
@@ -264,15 +240,9 @@ export default function LandingPage() {
                 verificationNote={{ kind: "free" }}
               />
 
-              <RegistrationForm
-                type="bot"
-                title="Bot Owner Registration"
-                description="Exclusive network for WhatsApp bot operators. Registration is completely free."
-                crossRegisterLabel="Also initialize Standard VCF registration"
-                accentColor="secondary"
-              />
+              <BotFlow />
 
-              {/* Bot-only directory */}
+              {/* Bot directory */}
               <div className="space-y-2 mt-4">
                 <div className="flex items-center gap-2 px-1">
                   <Smartphone className="w-4 h-4 text-secondary" />
@@ -289,18 +259,6 @@ export default function LandingPage() {
                   verificationNote={{ kind: "free" }}
                 />
               </div>
-            </motion.div>
-          )}
-
-          {activeTab === "payment" && (
-            <motion.div
-              key="payment"
-              variants={variants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-            >
-              <PaymentConfirmationForm />
             </motion.div>
           )}
         </AnimatePresence>

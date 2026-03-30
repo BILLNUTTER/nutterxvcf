@@ -18757,14 +18757,14 @@ var require_etag = __commonJS({
   "../../node_modules/.pnpm/etag@1.8.1/node_modules/etag/index.js"(exports2, module2) {
     "use strict";
     module2.exports = etag;
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var Stats = require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash = crypto4.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash = crypto5.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash + '"';
     }
@@ -20473,27 +20473,27 @@ var require_router = __commonJS({
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module2.exports = Router9;
+    module2.exports = Router10;
     module2.exports.Route = Route;
-    function Router9(options) {
-      if (!(this instanceof Router9)) {
-        return new Router9(options);
+    function Router10(options) {
+      if (!(this instanceof Router10)) {
+        return new Router10(options);
       }
       const opts = options || {};
-      function router9(req, res, next) {
-        router9.handle(req, res, next);
+      function router10(req, res, next) {
+        router10.handle(req, res, next);
       }
-      Object.setPrototypeOf(router9, this);
-      router9.caseSensitive = opts.caseSensitive;
-      router9.mergeParams = opts.mergeParams;
-      router9.params = {};
-      router9.strict = opts.strict;
-      router9.stack = [];
-      return router9;
+      Object.setPrototypeOf(router10, this);
+      router10.caseSensitive = opts.caseSensitive;
+      router10.mergeParams = opts.mergeParams;
+      router10.params = {};
+      router10.strict = opts.strict;
+      router10.stack = [];
+      return router10;
     }
-    Router9.prototype = function() {
+    Router10.prototype = function() {
     };
-    Router9.prototype.param = function param(name, fn) {
+    Router10.prototype.param = function param(name, fn) {
       if (!name) {
         throw new TypeError("argument name is required");
       }
@@ -20513,7 +20513,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router9.prototype.handle = function handle(req, res, callback) {
+    Router10.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20640,7 +20640,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router9.prototype.use = function use(handler) {
+    Router10.prototype.use = function use(handler) {
       let offset = 0;
       let path = "/";
       if (typeof handler !== "function") {
@@ -20673,7 +20673,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router9.prototype.route = function route(path) {
+    Router10.prototype.route = function route(path) {
       const route2 = new Route(path);
       const layer = new Layer(path, {
         sensitive: this.caseSensitive,
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router9.prototype[method] = function(path) {
+      Router10.prototype[method] = function(path) {
         const route = this.route(path);
         route[method].apply(route, slice.call(arguments, 1));
         return this;
@@ -20871,13 +20871,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = require("node:path").resolve;
     var once = require_once();
-    var Router9 = require_router();
+    var Router10 = require_router();
     var slice = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports2 = module2.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router9 = null;
+      var router10 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router9 === null) {
-            router9 = new Router9({
+          if (router10 === null) {
+            router10 = new Router10({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router9;
+          return router10;
         }
       });
     };
@@ -20963,15 +20963,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router9 = this.router;
+      var router10 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router9.use(path, fn2);
+          return router10.use(path, fn2);
         }
         debug(".use app under %s", path);
         fn2.mountpath = path;
         fn2.parent = this;
-        router9.use(path, function mounted_app(req, res, next) {
+        router10.use(path, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -22179,17 +22179,17 @@ var require_content_disposition = __commonJS({
 // ../../node_modules/.pnpm/cookie-signature@1.2.2/node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "../../node_modules/.pnpm/cookie-signature@1.2.2/node_modules/cookie-signature/index.js"(exports2) {
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     exports2.sign = function(val, secret) {
       if ("string" != typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto4.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto5.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports2.unsign = function(input, secret) {
       if ("string" != typeof input) throw new TypeError("Signed cookie string must be provided.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
       var tentativeValue = input.slice(0, input.lastIndexOf(".")), expectedInput = exports2.sign(tentativeValue, secret), expectedBuffer = Buffer.from(expectedInput), inputBuffer = Buffer.from(input);
-      return expectedBuffer.length === inputBuffer.length && crypto4.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
+      return expectedBuffer.length === inputBuffer.length && crypto5.timingSafeEqual(expectedBuffer, inputBuffer) ? tentativeValue : false;
     };
   }
 });
@@ -23498,7 +23498,7 @@ var require_express = __commonJS({
     var EventEmitter = require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router9 = require_router();
+    var Router10 = require_router();
     var req = require_request();
     var res = require_response();
     exports2 = module2.exports = createApplication;
@@ -23520,8 +23520,8 @@ var require_express = __commonJS({
     exports2.application = proto;
     exports2.request = req;
     exports2.response = res;
-    exports2.Route = Router9.Route;
-    exports2.Router = Router9;
+    exports2.Route = Router10.Route;
+    exports2.Router = Router10;
     exports2.json = bodyParser.json;
     exports2.raw = bodyParser.raw;
     exports2.static = require_serve_static();
@@ -29755,7 +29755,7 @@ var require_cert_signatures = __commonJS({
 var require_sasl = __commonJS({
   "../../node_modules/.pnpm/pg@8.20.0/node_modules/pg/lib/crypto/sasl.js"(exports2, module2) {
     "use strict";
-    var crypto4 = require_utils5();
+    var crypto5 = require_utils5();
     var { signatureAlgorithmHashFromCertificate } = require_cert_signatures();
     function startSession(mechanisms, stream) {
       const candidates = ["SCRAM-SHA-256"];
@@ -29767,7 +29767,7 @@ var require_sasl = __commonJS({
       if (mechanism === "SCRAM-SHA-256-PLUS" && typeof stream.getPeerCertificate !== "function") {
         throw new Error("SASL: Mechanism SCRAM-SHA-256-PLUS requires a certificate");
       }
-      const clientNonce = crypto4.randomBytes(18).toString("base64");
+      const clientNonce = crypto5.randomBytes(18).toString("base64");
       const gs2Header = mechanism === "SCRAM-SHA-256-PLUS" ? "p=tls-server-end-point" : stream ? "y" : "n";
       return {
         mechanism,
@@ -29802,20 +29802,20 @@ var require_sasl = __commonJS({
         const peerCert = stream.getPeerCertificate().raw;
         let hashName = signatureAlgorithmHashFromCertificate(peerCert);
         if (hashName === "MD5" || hashName === "SHA-1") hashName = "SHA-256";
-        const certHash = await crypto4.hashByName(hashName, peerCert);
+        const certHash = await crypto5.hashByName(hashName, peerCert);
         const bindingData = Buffer.concat([Buffer.from("p=tls-server-end-point,,"), Buffer.from(certHash)]);
         channelBinding = bindingData.toString("base64");
       }
       const clientFinalMessageWithoutProof = "c=" + channelBinding + ",r=" + sv.nonce;
       const authMessage = clientFirstMessageBare + "," + serverFirstMessage + "," + clientFinalMessageWithoutProof;
       const saltBytes = Buffer.from(sv.salt, "base64");
-      const saltedPassword = await crypto4.deriveKey(password, saltBytes, sv.iteration);
-      const clientKey = await crypto4.hmacSha256(saltedPassword, "Client Key");
-      const storedKey = await crypto4.sha256(clientKey);
-      const clientSignature = await crypto4.hmacSha256(storedKey, authMessage);
+      const saltedPassword = await crypto5.deriveKey(password, saltBytes, sv.iteration);
+      const clientKey = await crypto5.hmacSha256(saltedPassword, "Client Key");
+      const storedKey = await crypto5.sha256(clientKey);
+      const clientSignature = await crypto5.hmacSha256(storedKey, authMessage);
       const clientProof = xorBuffers(Buffer.from(clientKey), Buffer.from(clientSignature)).toString("base64");
-      const serverKey = await crypto4.hmacSha256(saltedPassword, "Server Key");
-      const serverSignatureBytes = await crypto4.hmacSha256(serverKey, authMessage);
+      const serverKey = await crypto5.hmacSha256(saltedPassword, "Server Key");
+      const serverSignatureBytes = await crypto5.hmacSha256(serverKey, authMessage);
       session.message = "SASLResponse";
       session.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
       session.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
@@ -31983,7 +31983,7 @@ var require_client = __commonJS({
     var Query2 = require_query();
     var defaults2 = require_defaults();
     var Connection2 = require_connection();
-    var crypto4 = require_utils5();
+    var crypto5 = require_utils5();
     var activeQueryDeprecationNotice = nodeUtils.deprecate(
       () => {
       },
@@ -32218,7 +32218,7 @@ var require_client = __commonJS({
       _handleAuthMD5Password(msg) {
         this._getPassword(async () => {
           try {
-            const hashedPassword = await crypto4.postgresMd5PasswordHash(this.user, this.password, msg.salt);
+            const hashedPassword = await crypto5.postgresMd5PasswordHash(this.user, this.password, msg.salt);
             this.connection.password(hashedPassword);
           } catch (e) {
             this.emit("error", e);
@@ -33489,12 +33489,12 @@ __export(app_exports, {
   default: () => app_default
 });
 module.exports = __toCommonJS(app_exports);
-var import_express9 = __toESM(require_express2(), 1);
+var import_express10 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
 // src/routes/index.ts
-var import_express8 = __toESM(require_express2(), 1);
+var import_express9 = __toESM(require_express2(), 1);
 
 // src/routes/health.ts
 var import_express = __toESM(require_express2(), 1);
@@ -44640,6 +44640,7 @@ function drizzle(...params) {
 // ../../lib/db/src/schema/index.ts
 var schema_exports = {};
 __export(schema_exports, {
+  botVerifiedPhonesTable: () => botVerifiedPhonesTable,
   insertRegistrationSchema: () => insertRegistrationSchema,
   paymentConfirmationsTable: () => paymentConfirmationsTable,
   paymentStatusEnum: () => paymentStatusEnum,
@@ -56078,6 +56079,13 @@ var paymentConfirmationsTable = pgTable("payment_confirmations", {
   createdAt: timestamp("created_at").notNull().defaultNow()
 });
 
+// ../../lib/db/src/schema/bot-verified.ts
+var botVerifiedPhonesTable = pgTable("bot_verified_phones", {
+  phone: text("phone").primaryKey(),
+  verifiedAt: timestamp("verified_at").notNull().defaultNow(),
+  registrationId: integer("registration_id")
+});
+
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
 var rawConnectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
@@ -56579,16 +56587,135 @@ router7.delete("/admin/payment-confirmations/:id", requireAdmin, async (req, res
 });
 var payments_default = router7;
 
-// src/routes/index.ts
+// src/routes/bot.ts
+var import_express8 = __toESM(require_express2(), 1);
+var import_crypto3 = __toESM(require("crypto"), 1);
 var router8 = (0, import_express8.Router)();
-router8.use(health_default);
-router8.use(config_default);
-router8.use(registrations_default);
-router8.use(admin_default);
-router8.use(settings_default);
-router8.use(vcf_default);
-router8.use(payments_default);
-var routes_default = router8;
+var E164_REGEX2 = /^\+[1-9]\d{7,14}$/;
+function normalisePhone(raw) {
+  const trimmed = raw.replace(/\s+/g, "").trim();
+  if (E164_REGEX2.test(trimmed)) return trimmed;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.startsWith("0") && digits.length === 10) return `+254${digits.slice(1)}`;
+  if (digits.startsWith("254") && digits.length === 12) return `+${digits}`;
+  return trimmed;
+}
+router8.post("/admin/bot-verify", requireAdmin, async (req, res) => {
+  const parsed = external_exports.object({ phone: external_exports.string().min(7).max(20) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "validation_error", message: "Invalid phone number" });
+    return;
+  }
+  const phone = normalisePhone(parsed.data.phone);
+  if (!E164_REGEX2.test(phone)) {
+    res.status(400).json({ error: "validation_error", message: "Phone must be in E.164 format (e.g. +254712345678)" });
+    return;
+  }
+  try {
+    await db.insert(botVerifiedPhonesTable).values({ phone }).onConflictDoNothing();
+    res.json({ success: true, phone });
+  } catch (err) {
+    req.log.error({ err }, "Failed to add bot-verified phone");
+    res.status(500).json({ error: "server_error", message: "Failed to save" });
+  }
+});
+router8.delete("/admin/bot-verify/:phone", requireAdmin, async (req, res) => {
+  const phone = decodeURIComponent(req.params.phone);
+  try {
+    await db.delete(botVerifiedPhonesTable).where(eq(botVerifiedPhonesTable.phone, phone));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to remove bot-verified phone");
+    res.status(500).json({ error: "server_error", message: "Failed to delete" });
+  }
+});
+router8.get("/admin/bot-verified", requireAdmin, async (req, res) => {
+  try {
+    const rows = await db.select().from(botVerifiedPhonesTable).orderBy(botVerifiedPhonesTable.verifiedAt);
+    res.json({ entries: rows, total: rows.length });
+  } catch (err) {
+    req.log.error({ err }, "Failed to list bot-verified phones");
+    res.status(500).json({ error: "server_error", message: "Failed to fetch" });
+  }
+});
+router8.get("/bot-check", async (req, res) => {
+  const raw = req.query.phone || "";
+  if (!raw) {
+    res.status(400).json({ error: "validation_error", message: "phone query param required" });
+    return;
+  }
+  const phone = normalisePhone(raw);
+  try {
+    const [row] = await db.select().from(botVerifiedPhonesTable).where(eq(botVerifiedPhonesTable.phone, phone)).limit(1);
+    if (!row) {
+      res.json({ status: "not_verified" });
+      return;
+    }
+    if (row.registrationId) {
+      res.json({ status: "registered" });
+      return;
+    }
+    res.json({ status: "verified" });
+  } catch (err) {
+    req.log.error({ err }, "bot-check error");
+    res.status(500).json({ error: "server_error", message: "Failed to check" });
+  }
+});
+router8.post("/bot-complete", async (req, res) => {
+  const parsed = external_exports.object({
+    phone: external_exports.string().min(7).max(20),
+    name: external_exports.string().min(2).max(200).trim()
+  }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "validation_error", message: parsed.error.message });
+    return;
+  }
+  const phone = normalisePhone(parsed.data.phone);
+  const { name } = parsed.data;
+  if (!E164_REGEX2.test(phone)) {
+    res.status(400).json({ error: "validation_error", message: "Invalid phone format" });
+    return;
+  }
+  try {
+    const [botRow] = await db.select().from(botVerifiedPhonesTable).where(eq(botVerifiedPhonesTable.phone, phone)).limit(1);
+    if (!botRow) {
+      res.status(403).json({ error: "not_verified", message: "Phone number has not been bot-verified by admin." });
+      return;
+    }
+    if (botRow.registrationId) {
+      res.status(409).json({ error: "already_registered", message: "This phone number has already completed bot registration." });
+      return;
+    }
+    const countryCode = phone.replace(/\d+$/, "").replace(/\d{0,9}$/, "") || `+${phone.replace(/^\+/, "").slice(0, 3)}`;
+    const cc = `+${phone.slice(1, phone.length - 9)}` || "+254";
+    const [reg] = await db.insert(registrationsTable).values({
+      name,
+      phone,
+      countryCode: cc.startsWith("+") && cc.length <= 5 ? cc : "+254",
+      registrationType: "bot",
+      status: "approved",
+      claimToken: import_crypto3.default.randomBytes(32).toString("hex")
+    }).returning();
+    await db.update(botVerifiedPhonesTable).set({ registrationId: reg.id }).where(eq(botVerifiedPhonesTable.phone, phone));
+    res.status(201).json({ success: true, name: reg.name });
+  } catch (err) {
+    req.log.error({ err }, "bot-complete error");
+    res.status(500).json({ error: "server_error", message: "Failed to complete registration" });
+  }
+});
+var bot_default = router8;
+
+// src/routes/index.ts
+var router9 = (0, import_express9.Router)();
+router9.use(health_default);
+router9.use(config_default);
+router9.use(registrations_default);
+router9.use(admin_default);
+router9.use(settings_default);
+router9.use(vcf_default);
+router9.use(payments_default);
+router9.use(bot_default);
+var routes_default = router9;
 
 // src/lib/logger.ts
 var import_pino = __toESM(require_pino(), 1);
@@ -56609,7 +56736,7 @@ var logger = (0, import_pino.default)({
 });
 
 // src/app.ts
-var app = (0, import_express9.default)();
+var app = (0, import_express10.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -56630,8 +56757,8 @@ app.use(
   })
 );
 app.use((0, import_cors.default)());
-app.use(import_express9.default.json());
-app.use(import_express9.default.urlencoded({ extended: true }));
+app.use(import_express10.default.json());
+app.use(import_express10.default.urlencoded({ extended: true }));
 app.use("/api", routes_default);
 var app_default = app;
 /*! Bundled license information:

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck } from "lucide-react";
+import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck, UserCheck, Plus, X } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 
@@ -158,7 +158,8 @@ export default function AdminPage() {
           <TabsContent value="standard" className="mt-0">
             <RegistrationTable type="standard" token={token!} onAuthError={handleAuthError} />
           </TabsContent>
-          <TabsContent value="bot" className="mt-0">
+          <TabsContent value="bot" className="mt-0 space-y-6">
+            <BotVerifierPanel token={token!} onAuthError={handleAuthError} />
             <RegistrationTable type="bot" token={token!} onAuthError={handleAuthError} />
           </TabsContent>
           <TabsContent value="payments" className="mt-0">
@@ -308,6 +309,164 @@ function TargetSettingsPanel({ token, onAuthError }: { token: string; onAuthErro
               )}
             </div>
           </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface BotVerifiedEntry {
+  phone: string;
+  verifiedAt: string;
+  registrationId: number | null;
+}
+
+async function fetchBotVerified(token: string): Promise<{ entries: BotVerifiedEntry[]; total: number }> {
+  const res = await fetch("/api/admin/bot-verified", { headers: { "x-admin-token": token } });
+  if (!res.ok) throw new Error("Failed to fetch");
+  return res.json() as Promise<{ entries: BotVerifiedEntry[]; total: number }>;
+}
+
+async function addBotVerified(token: string, phone: string): Promise<void> {
+  const res = await fetch("/api/admin/bot-verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-admin-token": token },
+    body: JSON.stringify({ phone }),
+  });
+  if (!res.ok) {
+    const err = await res.json() as { message?: string };
+    throw new Error(err.message ?? "Failed to add");
+  }
+}
+
+async function removeBotVerified(token: string, phone: string): Promise<void> {
+  const res = await fetch(`/api/admin/bot-verify/${encodeURIComponent(phone)}`, {
+    method: "DELETE",
+    headers: { "x-admin-token": token },
+  });
+  if (!res.ok) throw new Error("Failed to remove");
+}
+
+function BotVerifierPanel({ token, onAuthError }: { token: string; onAuthError: () => void }) {
+  const queryClient = useQueryClient();
+  const [newPhone, setNewPhone] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/admin/bot-verified"],
+    queryFn: () => fetchBotVerified(token),
+    refetchInterval: 8000,
+    throwOnError: false,
+    meta: { onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); } },
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/bot-verified"] });
+
+  const addMutation = useMutation({
+    mutationFn: (phone: string) => addBotVerified(token, phone),
+    onSuccess: () => {
+      setNewPhone("");
+      setMsg("PHONE ADDED ✓");
+      setTimeout(() => setMsg(""), 3000);
+      invalidate();
+    },
+    onError: (err: Error) => {
+      setMsg(`ERROR: ${err.message}`);
+      setTimeout(() => setMsg(""), 4000);
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (phone: string) => removeBotVerified(token, phone),
+    onSuccess: invalidate,
+    onError: (err: Error) => {
+      if ((err as { status?: number }).status === 401) onAuthError();
+    },
+  });
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const p = newPhone.trim();
+    if (!p) return;
+    addMutation.mutate(p);
+  };
+
+  const entries = data?.entries || [];
+
+  return (
+    <Card className="border-t-4 border-t-secondary bg-black/40">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <UserCheck className="w-5 h-5 text-secondary" />
+          <CardTitle className="text-lg tracking-widest text-secondary">BOT PHONE VERIFIER</CardTitle>
+        </div>
+        <CardDescription className="font-mono text-xs leading-relaxed">
+          Enter a phone number to mark as bot-verified. The user can then check their status and complete their name to join the Bot VCF.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={handleAdd} className="flex gap-2 items-end">
+          <div className="flex-1 space-y-1">
+            <label className="text-xs font-bold font-mono text-secondary tracking-widest">ADD VERIFIED BOT NUMBER</label>
+            <input
+              type="text"
+              placeholder="e.g. +254712345678 or 0712345678"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              className="w-full h-10 rounded-md border-2 border-secondary/40 bg-black/40 px-3 font-mono text-sm text-white placeholder:text-white/25 focus:border-secondary focus:outline-none focus:shadow-[0_0_10px_hsl(var(--secondary)/0.3)] transition-all"
+              disabled={addMutation.isPending}
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={addMutation.isPending || !newPhone.trim()}
+            className="h-10 px-4 border-2 border-secondary/50 bg-secondary/10 text-secondary hover:bg-secondary/20 shadow-[0_0_8px_hsl(var(--secondary)/0.2)]"
+            variant="ghost"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            {addMutation.isPending ? "ADDING..." : "ADD"}
+          </Button>
+        </form>
+        {msg && (
+          <p className={`text-xs font-mono ${msg.startsWith("ERROR") ? "text-destructive" : "text-green-400"}`}>{msg}</p>
+        )}
+
+        {isLoading ? (
+          <p className="text-xs font-mono text-muted-foreground">LOADING...</p>
+        ) : entries.length === 0 ? (
+          <div className="text-center py-6 text-xs font-mono text-muted-foreground border border-dashed border-secondary/20 rounded-lg">
+            NO BOT-VERIFIED NUMBERS YET
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            {entries.map((e) => (
+              <div key={e.phone} className={`flex items-center justify-between rounded-lg border px-3 py-2 ${e.registrationId ? "border-green-500/30 bg-green-500/5" : "border-secondary/25 bg-secondary/5"}`}>
+                <div>
+                  <span className="font-mono text-sm text-white font-bold">{e.phone}</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      Added {format(new Date(e.verifiedAt), "yyyy-MM-dd HH:mm")}
+                    </span>
+                    {e.registrationId ? (
+                      <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">REGISTERED</span>
+                    ) : (
+                      <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded-full bg-secondary/20 text-secondary border border-secondary/30">PENDING NAME</span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => removeMutation.mutate(e.phone)}
+                  disabled={removeMutation.isPending}
+                  title="Remove"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>

@@ -6,6 +6,7 @@ import configRouter from "./config";
 import settingsRouter from "./settings";
 import vcfRouter from "./vcf";
 import paymentsRouter from "./payments";
+import botRouter from "./bot";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(adminRouter);
 router.use(settingsRouter);
 router.use(vcfRouter);
 router.use(paymentsRouter);
+router.use(botRouter);
 
 export default router;
