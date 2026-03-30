@@ -8,6 +8,9 @@ import {
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 
+const E164_REGEX = /^\+[1-9]\d{7,14}$/;
+const COUNTRY_CODE_REGEX = /^\+[1-9]\d{0,2}$/;
+
 const router: IRouter = Router();
 
 function generateClaimToken(): string {
@@ -22,6 +25,15 @@ router.post("/register", async (req, res) => {
   }
 
   const { name, phone, countryCode, registrationType, alsoRegisterStandard } = parsed.data;
+
+  if (!E164_REGEX.test(phone)) {
+    res.status(400).json({ error: "validation_error", message: "phone must be in E.164 format (e.g. +254712345678)" });
+    return;
+  }
+  if (!COUNTRY_CODE_REGEX.test(countryCode)) {
+    res.status(400).json({ error: "validation_error", message: "countryCode must be a valid dial code (e.g. +254)" });
+    return;
+  }
 
   try {
     const existing = await db

@@ -48,22 +48,30 @@ A full-stack registration and admin verification platform for VCF (Virtual Conta
 - **Verified members list**: Public display of approved user names
 - **Post-approval redirect**: Approved users get redirected to WhatsApp group links
 
-### Environment Variables
-- `ADMIN_USERNAME` — Admin dashboard username (default: nutterx_admin)
-- `ADMIN_PASSWORD` — Admin dashboard password
-- `STANDARD_GROUP_LINK` — WhatsApp group link for approved Standard VCF users
-- `BOT_GROUP_LINK` — WhatsApp group link for approved Bot VCF users
+### Environment Variables (all required in production)
+- `ADMIN_USERNAME` — Admin dashboard username (set in `.replit` shared env; default: nutterx_admin)
+- `ADMIN_PASSWORD` — Admin dashboard password (**Replit Secret**)
+- `STANDARD_GROUP_LINK` — WhatsApp group link for approved Standard VCF users (set in `.replit` shared env)
+- `BOT_GROUP_LINK` — WhatsApp group link for approved Bot VCF users (set in `.replit` shared env)
+- `SUPABASE_DATABASE_URL` — Supabase PostgreSQL connection string (**Replit Secret**; falls back to local `DATABASE_URL`)
+- `ADMIN_TOKEN_SECRET` — (optional) HMAC secret for admin session tokens; generated at runtime if absent (tokens are invalidated on server restart if not set)
 
 ### API Routes (all at `/api`)
-- `POST /api/register` — Submit registration (name, phone, countryCode, registrationType)
-- `GET /api/users/verified` — Public list of verified users by type
-- `GET /api/config` — Returns group links (public)
-- `POST /api/admin/login` — Admin login, returns session token
+- `POST /api/register` — Submit registration (name, phone [E.164], countryCode, registrationType); returns `claimToken` per registration
+- `GET /api/users/verified` — Public list of approved user names by type (no phone/claim data exposed)
+- `POST /api/redirect` — Returns WhatsApp group link if the provided `claimToken` belongs to an approved registration
+- `POST /api/admin/login` — Admin login, returns session token (8-hour TTL, in-memory with expiry)
 - `GET /api/admin/registrations` — All registrations (requires `x-admin-token` header)
 - `PATCH /api/admin/registrations/:id` — Approve/reject a registration (requires `x-admin-token` header)
 
+### Security Model
+- Group links are **never** publicly exposed; only returned by `/api/redirect` after server-side approval check
+- Each registration receives a unique cryptographic `claimToken` (64 hex chars); only the original registrant can retrieve the redirect link
+- Phone numbers validated to E.164 format on both client (react-phone-number-input) and server
+- Admin tokens expire after 8 hours; expired tokens are pruned on each login
+
 ### Database Schema
-- **registrations** table: id, name, phone, country_code, status (pending/approved/rejected), registration_type (standard/bot), created_at
+- **registrations** table: id, name, phone, country_code, status (pending/approved/rejected), registration_type (standard/bot), claim_token (unique, 64 hex chars), created_at
 
 ## TypeScript & Composite Projects
 
