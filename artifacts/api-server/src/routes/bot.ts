@@ -11,25 +11,31 @@ const router: IRouter = Router();
 const E164_REGEX = /^\+[1-9]\d{7,14}$/;
 
 /**
- * Normalise any Kenyan phone input to E.164.
- * Accepted formats (all map to +254XXXXXXXXX):
- *   0712345678      – local 10-digit with leading 0
- *   712345678       – 9-digit without leading 0
- *   254712345678    – country code without +
- *   +254712345678   – already E.164
- * Also accepts any other valid E.164 number unchanged.
+ * Normalise a phone number to E.164.
+ *
+ * Kenyan shorthand (no country code needed):
+ *   0712345678   → +254712345678   (10-digit, leading 0)
+ *   712345678    → +254712345678   (9-digit, no leading 0)
+ *   254712345678 → +254712345678   (12-digit with country code, no +)
+ *
+ * International — must include + and full country code:
+ *   +447911123456  → +447911123456  (UK)
+ *   +12025551234   → +12025551234   (US)
+ *   +254712345678  → +254712345678  (Kenya, already E.164)
+ *
+ * Anything else is returned as-is and will fail E164 validation.
  */
 function normalisePhone(raw: string): string {
   const trimmed = raw.replace(/\s+/g, "").trim();
-  if (E164_REGEX.test(trimmed)) return trimmed;           // already E.164
+  if (E164_REGEX.test(trimmed)) return trimmed;          // already E.164
   const digits = trimmed.replace(/\D/g, "");
-  if (digits.startsWith("0") && digits.length === 10)     // 0712345678
+  if (digits.startsWith("0") && digits.length === 10)    // 0712345678  → Kenya
     return `+254${digits.slice(1)}`;
-  if (digits.startsWith("254") && digits.length === 12)   // 254712345678
+  if (digits.startsWith("254") && digits.length === 12)  // 254712345678 → Kenya
     return `+${digits}`;
-  if (digits.length === 9)                                 // 712345678 (no leading 0)
+  if (digits.length === 9)                               // 712345678   → Kenya
     return `+254${digits}`;
-  return trimmed; // return as-is; will fail E164 check and produce a clear error
+  return trimmed; // non-Kenyan without +: will fail E164 check below
 }
 
 router.post("/admin/bot-verify", requireAdmin, async (req, res) => {
@@ -40,7 +46,10 @@ router.post("/admin/bot-verify", requireAdmin, async (req, res) => {
   }
   const phone = normalisePhone(parsed.data.phone);
   if (!E164_REGEX.test(phone)) {
-    res.status(400).json({ error: "validation_error", message: "Invalid phone number. Enter it as 0712345678 or 712345678 — no need for country code." });
+    res.status(400).json({
+      error: "validation_error",
+      message: "Invalid phone number. Kenyan numbers: enter 0712345678 or 712345678. Other countries: include + and country code, e.g. +447911123456.",
+    });
     return;
   }
   try {

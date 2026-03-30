@@ -56813,7 +56813,10 @@ router8.post("/admin/bot-verify", requireAdmin, async (req, res) => {
   }
   const phone = normalisePhone(parsed.data.phone);
   if (!E164_REGEX2.test(phone)) {
-    res.status(400).json({ error: "validation_error", message: "Invalid phone number. Enter it as 0712345678 or 712345678 \u2014 no need for country code." });
+    res.status(400).json({
+      error: "validation_error",
+      message: "Invalid phone number. Kenyan numbers: enter 0712345678 or 712345678. Other countries: include + and country code, e.g. +447911123456."
+    });
     return;
   }
   try {
