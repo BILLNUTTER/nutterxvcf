@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useGetVerifiedUsers, getGetVerifiedUsersQueryKey } from "@workspace/api-client-react";
 import { RegistrationForm } from "@/components/RegistrationForm";
+import { PaymentConfirmationForm } from "@/components/PaymentConfirmationForm";
 import { CapacityBar, UserDirectory } from "@/components/VerifiedList";
 import { Activity, ShieldAlert, Smartphone } from "lucide-react";
 import { motion } from "framer-motion";
@@ -147,7 +148,7 @@ export default function LandingPage() {
               accentColor="primary"
               isTargetReached={stdTargetReached}
               onDownloadVcf={stdTargetReached ? () => downloadVcf("standard") : undefined}
-              verificationNote={{ kind: "payment", amount: "10", contact: "+254713881613" }}
+              verificationNote={{ kind: "payment", amount: "10", mpesaNumber: "0758891491" }}
             />
           </div>
 
@@ -162,14 +163,19 @@ export default function LandingPage() {
             />
           </div>
 
-          {/* 4 — Bot column header (extra top margin on mobile only) */}
-          <div className="flex items-center space-x-3 order-4 mt-6 lg:mt-0 lg:order-none lg:col-start-2">
+          {/* 4 — Standard payment confirmation form (Standard column only) */}
+          <div className="order-4 lg:order-none lg:col-start-1">
+            <PaymentConfirmationForm />
+          </div>
+
+          {/* 5 — Bot column header (extra top margin on mobile only) */}
+          <div className="flex items-center space-x-3 order-5 mt-6 lg:mt-0 lg:order-none lg:col-start-2">
             <Smartphone className="w-6 h-6 text-secondary" />
             <h2 className="text-2xl font-bold text-white tracking-widest">BOT PROTOCOL</h2>
           </div>
 
-          {/* 5 — Bot capacity bar */}
-          <div className="order-5 lg:order-none lg:col-start-2">
+          {/* 6 — Bot capacity bar */}
+          <div className="order-6 lg:order-none lg:col-start-2">
             <CapacityBar
               title="Verified Bot Owners"
               users={botUsers}
@@ -181,8 +187,8 @@ export default function LandingPage() {
             />
           </div>
 
-          {/* 6 — Bot registration form */}
-          <div className="order-6 lg:order-none lg:col-start-2">
+          {/* 7 — Bot registration form */}
+          <div className="order-7 lg:order-none lg:col-start-2">
             <RegistrationForm
               type="bot"
               title="Bot Owner Registration"
@@ -192,17 +198,17 @@ export default function LandingPage() {
             />
           </div>
 
-          {/* 7 — Standard verified directory — on mobile appears AFTER bot registration form */}
-          <div className="order-7 lg:order-none lg:col-start-1">
+          {/* 8 — Standard verified directory — on mobile appears AFTER bot registration form */}
+          <div className="order-8 lg:order-none lg:col-start-1">
             <UserDirectory
               users={stdUsers}
               accentColor="primary"
-              verificationNote={{ kind: "payment", amount: "10", contact: "+254713881613" }}
+              verificationNote={{ kind: "payment", amount: "10", mpesaNumber: "0758891491" }}
             />
           </div>
 
-          {/* 8 — Bot verified directory */}
-          <div className="order-8 lg:order-none lg:col-start-2">
+          {/* 9 — Bot verified directory */}
+          <div className="order-9 lg:order-none lg:col-start-2">
             <UserDirectory
               users={botUsers}
               accentColor="secondary"

@@ -5,7 +5,7 @@ import { User, ShieldCheck, PauseCircle, Download, AlertTriangle, CheckCircle2 }
 import { motion } from "framer-motion";
 
 type VerificationNote =
-  | { kind: "payment"; amount: string; contact: string }
+  | { kind: "payment"; amount: string; mpesaNumber: string }
   | { kind: "free" };
 
 interface CapacityBarProps {
@@ -66,16 +66,9 @@ export function CapacityBar({
             <p className="text-xs font-mono leading-relaxed">
               <span className="font-bold text-amber-300 uppercase tracking-wide">Verification Fee Required</span>
               <br />
-              Send <span className="font-bold text-white">Ksh. {verificationNote.amount}</span> per number to admin via WhatsApp to complete verification after registration.
-              <br />
-              <a
-                href={`https://wa.me/${verificationNote.contact.replace(/\D/g, "")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-amber-400 underline underline-offset-2 hover:text-amber-300 transition-colors"
-              >
-                {verificationNote.contact}
-              </a>
+              Send <span className="font-bold text-white">Ksh. {verificationNote.amount}</span> via M-Pesa to{" "}
+              <span className="font-bold text-white tracking-widest">{verificationNote.mpesaNumber}</span>{" "}
+              then paste your confirmation message below to complete verification.
             </p>
           </div>
         ) : (
@@ -141,17 +134,9 @@ export function UserDirectory({ users, accentColor, verificationNote }: UserDire
       {/* Directory-level verification reminder */}
       {verificationNote?.kind === "payment" && (
         <p className="text-[11px] font-mono text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1.5 mb-3 leading-snug">
-          These members confirmed by sending <span className="font-bold text-amber-300">Ksh. {verificationNote.amount}</span> to admin.
-          Send yours to{" "}
-          <a
-            href={`https://wa.me/${verificationNote.contact.replace(/\D/g, "")}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-amber-400 underline underline-offset-1 hover:text-amber-300"
-          >
-            {verificationNote.contact}
-          </a>{" "}
-          to join.
+          These members paid <span className="font-bold text-amber-300">Ksh. {verificationNote.amount}</span> via M-Pesa to{" "}
+          <span className="font-bold text-amber-300 tracking-widest">{verificationNote.mpesaNumber}</span>{" "}
+          and submitted their confirmation. Do the same to join.
         </p>
       )}
 

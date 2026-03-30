@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save } from "lucide-react";
+import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 
@@ -137,9 +137,13 @@ export default function AdminPage() {
         <TargetSettingsPanel token={token!} />
 
         <Tabs defaultValue="standard" className="w-full">
-          <TabsList className="grid w-full sm:w-96 grid-cols-2 mb-8">
+          <TabsList className="grid w-full sm:w-[576px] grid-cols-3 mb-8">
             <TabsTrigger value="standard">Standard VCF</TabsTrigger>
             <TabsTrigger value="bot">Bot VCF</TabsTrigger>
+            <TabsTrigger value="payments">
+              <Smartphone className="w-3.5 h-3.5 mr-1.5" />
+              Payments
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="standard" className="mt-0">
@@ -147,6 +151,9 @@ export default function AdminPage() {
           </TabsContent>
           <TabsContent value="bot" className="mt-0">
             <RegistrationTable type="bot" token={token!} />
+          </TabsContent>
+          <TabsContent value="payments" className="mt-0">
+            <PaymentsTable token={token!} />
           </TabsContent>
         </Tabs>
       </div>
@@ -288,6 +295,181 @@ function TargetSettingsPanel({ token }: { token: string }) {
               )}
             </div>
           </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface PaymentConfirmation {
+  id: number;
+  name: string;
+  phone: string;
+  mpesaMessage: string;
+  status: string;
+  createdAt: string;
+}
+
+async function fetchPaymentConfirmations(token: string): Promise<{ confirmations: PaymentConfirmation[]; total: number }> {
+  const res = await fetch("/api/admin/payment-confirmations", {
+    headers: { "x-admin-token": token },
+  });
+  if (!res.ok) throw new Error("Failed to fetch");
+  return res.json() as Promise<{ confirmations: PaymentConfirmation[]; total: number }>;
+}
+
+async function updatePaymentStatus(token: string, id: number, status: string): Promise<void> {
+  await fetch(`/api/admin/payment-confirmations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "x-admin-token": token },
+    body: JSON.stringify({ status }),
+  });
+}
+
+async function deletePaymentConfirmation(token: string, id: number): Promise<void> {
+  await fetch(`/api/admin/payment-confirmations/${id}`, {
+    method: "DELETE",
+    headers: { "x-admin-token": token },
+  });
+}
+
+function PaymentsTable({ token }: { token: string }) {
+  const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/admin/payment-confirmations"],
+    queryFn: () => fetchPaymentConfirmations(token),
+    refetchInterval: 8000,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/payment-confirmations"] });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      updatePaymentStatus(token, id, status),
+    onSuccess: invalidate,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deletePaymentConfirmation(token, id),
+    onSuccess: () => { setConfirmDeleteId(null); invalidate(); },
+  });
+
+  const handleDelete = (id: number) => {
+    if (confirmDeleteId === id) {
+      deleteMutation.mutate(id);
+    } else {
+      setConfirmDeleteId(id);
+      setTimeout(() => setConfirmDeleteId(null), 4000);
+    }
+  };
+
+  const statusBadge = (status: string) => {
+    if (status === "actioned") return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/40">ACTIONED</span>;
+    if (status === "reviewed") return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40">REVIEWED</span>;
+    return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">PENDING</span>;
+  };
+
+  if (isLoading) {
+    return <div className="h-64 flex items-center justify-center font-mono text-muted-foreground">LOADING PAYMENT DATA...</div>;
+  }
+
+  const confirmations = data?.confirmations || [];
+
+  return (
+    <Card className="border-t-4 border-t-amber-500/70 bg-black/40">
+      <CardHeader>
+        <CardTitle className="text-xl flex items-center gap-2">
+          <Smartphone className="w-5 h-5 text-amber-400" />
+          M-Pesa Payment Confirmations
+        </CardTitle>
+        <CardDescription>
+          Total Submissions: {data?.total || 0} — M-Pesa Number:{" "}
+          <span className="font-bold text-amber-300 tracking-widest">0758891491</span>
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {confirmations.length === 0 ? (
+          <div className="text-center p-8 text-muted-foreground font-mono border border-dashed border-amber-500/20 rounded-lg">
+            NO PAYMENT CONFIRMATIONS YET
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {confirmations.map((c) => (
+              <div
+                key={c.id}
+                className={`rounded-lg border ${c.status === "actioned" ? "border-green-500/30 bg-green-500/5" : c.status === "reviewed" ? "border-blue-500/30 bg-blue-500/5" : "border-amber-500/30 bg-amber-500/5"} p-4 space-y-3`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white">{c.name}</span>
+                      {statusBadge(c.status)}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+                      <span>{c.phone}</span>
+                      <span>•</span>
+                      <span>{format(new Date(c.createdAt), "yyyy-MM-dd HH:mm")}</span>
+                      <span>•</span>
+                      <span className="text-muted-foreground/60">#{c.id.toString().padStart(4, "0")}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-2 text-muted-foreground hover:text-white"
+                      onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1" />
+                      {expandedId === c.id ? "HIDE" : "VIEW"}
+                    </Button>
+                    {c.status === "pending" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                        onClick={() => statusMutation.mutate({ id: c.id, status: "reviewed" })}
+                        disabled={statusMutation.isPending}
+                      >
+                        <Eye className="w-3.5 h-3.5 mr-1" /> REVIEWED
+                      </Button>
+                    )}
+                    {(c.status === "pending" || c.status === "reviewed") && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-8 px-2 bg-green-600 hover:bg-green-500 shadow-[0_0_8px_rgba(22,163,74,0.4)]"
+                        onClick={() => statusMutation.mutate({ id: c.id, status: "actioned" })}
+                        disabled={statusMutation.isPending}
+                      >
+                        <CheckCheck className="w-3.5 h-3.5 mr-1" /> ACTIONED
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={confirmDeleteId === c.id ? "destructive" : "ghost"}
+                      className={`h-8 px-2 ${confirmDeleteId === c.id ? "animate-pulse" : "text-destructive/70 hover:text-destructive hover:bg-destructive/10"}`}
+                      onClick={() => handleDelete(c.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      {confirmDeleteId === c.id ? "CONFIRM?" : "DELETE"}
+                    </Button>
+                  </div>
+                </div>
+
+                {expandedId === c.id && (
+                  <div className="rounded border border-border/50 bg-background/40 px-3 py-2.5">
+                    <p className="text-[10px] font-bold font-mono text-muted-foreground uppercase tracking-wider mb-1.5">M-PESA MESSAGE</p>
+                    <p className="text-sm font-mono text-white/90 whitespace-pre-wrap leading-relaxed">{c.mpesaMessage}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
