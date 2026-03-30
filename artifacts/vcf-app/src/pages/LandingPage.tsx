@@ -1,25 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useGetVerifiedUsers, getGetVerifiedUsersQueryKey } from "@workspace/api-client-react";
 import { RegistrationForm } from "@/components/RegistrationForm";
 import { CapacityBar, UserDirectory } from "@/components/VerifiedList";
 import { Activity, ShieldAlert, Smartphone } from "lucide-react";
 import { motion } from "framer-motion";
 
+async function checkAndRedirect(name: string, type: "standard" | "bot") {
+  try {
+    const res = await fetch("/api/redirect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, type }),
+    });
+    if (res.ok) {
+      const { redirectUrl } = await res.json() as { redirectUrl: string };
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+      }
+    }
+  } catch {
+  }
+}
+
 export default function LandingPage() {
   const { data: verifiedUsers } = useGetVerifiedUsers({
     query: { queryKey: getGetVerifiedUsersQueryKey(), refetchInterval: 10000 }
   });
-  const [groupLinks, setGroupLinks] = useState({
-    standardGroupLink: "https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t",
-    botGroupLink: "",
-  });
-
-  useEffect(() => {
-    fetch("/api/config")
-      .then(r => r.json())
-      .then(data => setGroupLinks(data))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (verifiedUsers) {
@@ -27,12 +33,12 @@ export default function LandingPage() {
       const botName = localStorage.getItem("registered_bot_name");
 
       if (stdName && verifiedUsers.standard.some(u => u.name === stdName)) {
-        window.location.href = groupLinks.standardGroupLink;
-      } else if (botName && verifiedUsers.bot.some(u => u.name === botName) && groupLinks.botGroupLink) {
-        window.location.href = groupLinks.botGroupLink;
+        void checkAndRedirect(stdName, "standard");
+      } else if (botName && verifiedUsers.bot.some(u => u.name === botName)) {
+        void checkAndRedirect(botName, "bot");
       }
     }
-  }, [verifiedUsers, groupLinks]);
+  }, [verifiedUsers]);
 
   return (
     <div className="min-h-screen pb-20">
@@ -82,7 +88,6 @@ export default function LandingPage() {
               <h2 className="text-2xl font-bold text-white tracking-widest">STANDARD PROTOCOL</h2>
             </div>
 
-            {/* 1. Capacity bar */}
             <CapacityBar
               title="Global VCF Network"
               users={verifiedUsers?.standard || []}
@@ -90,7 +95,6 @@ export default function LandingPage() {
               accentColor="primary"
             />
 
-            {/* 2. Registration form */}
             <RegistrationForm
               type="standard"
               title="Standard Registration"
@@ -99,7 +103,6 @@ export default function LandingPage() {
               accentColor="primary"
             />
 
-            {/* 3. Verified users list */}
             <UserDirectory
               users={verifiedUsers?.standard || []}
               accentColor="primary"
@@ -113,7 +116,6 @@ export default function LandingPage() {
               <h2 className="text-2xl font-bold text-white tracking-widest">BOT PROTOCOL</h2>
             </div>
 
-            {/* 1. Capacity bar */}
             <CapacityBar
               title="Verified Bot Owners"
               users={verifiedUsers?.bot || []}
@@ -121,7 +123,6 @@ export default function LandingPage() {
               accentColor="secondary"
             />
 
-            {/* 2. Registration form */}
             <RegistrationForm
               type="bot"
               title="Bot Owner Registration"
@@ -130,7 +131,6 @@ export default function LandingPage() {
               accentColor="secondary"
             />
 
-            {/* 3. Verified users list */}
             <UserDirectory
               users={verifiedUsers?.bot || []}
               accentColor="secondary"

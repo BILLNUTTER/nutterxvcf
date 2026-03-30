@@ -13,16 +13,14 @@ import crypto from "crypto";
 
 const router: IRouter = Router();
 
-const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET;
-if (!ADMIN_TOKEN_SECRET) {
-  throw new Error("ADMIN_TOKEN_SECRET environment variable must be set");
-}
+const ADMIN_TOKEN_SECRET =
+  process.env.ADMIN_TOKEN_SECRET ?? crypto.randomBytes(32).toString("hex");
 
 const validTokens = new Set<string>();
 
 function generateToken(username: string): string {
   const token = crypto
-    .createHmac("sha256", ADMIN_TOKEN_SECRET!)
+    .createHmac("sha256", ADMIN_TOKEN_SECRET)
     .update(`${username}-${Date.now()}`)
     .digest("hex");
   validTokens.add(token);
