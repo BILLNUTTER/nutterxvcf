@@ -1,11 +1,18 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useGetVerifiedUsers, getGetVerifiedUsersQueryKey } from "@workspace/api-client-react";
 import { RegistrationForm } from "@/components/RegistrationForm";
 import { PaymentConfirmationForm } from "@/components/PaymentConfirmationForm";
 import { CapacityBar, UserDirectory } from "@/components/VerifiedList";
-import { Activity, ShieldAlert, Smartphone } from "lucide-react";
-import { motion } from "framer-motion";
+import {
+  Activity,
+  ShieldAlert,
+  Smartphone,
+  CreditCard,
+  AlertTriangle,
+  ChevronRight,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface VcfSettings {
   standardTarget: number;
@@ -29,9 +36,7 @@ async function tryRedirectWithClaimToken(claimToken: string, type: "standard" | 
     });
     if (res.ok) {
       const { redirectUrl } = await res.json() as { redirectUrl: string };
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-      }
+      if (redirectUrl) window.location.href = redirectUrl;
     }
   } catch {
   }
@@ -41,7 +46,47 @@ function downloadVcf(type: "standard" | "bot") {
   window.open(`/api/vcf/download?type=${type}`, "_blank");
 }
 
+type Tab = "standard" | "bot" | "payment";
+
+const TABS: { id: Tab; label: string; shortLabel: string; icon: React.ReactNode; accent: string; border: string; glow: string }[] = [
+  {
+    id: "standard",
+    label: "Standard VCF",
+    shortLabel: "Standard",
+    icon: <ShieldAlert className="w-5 h-5" />,
+    accent: "text-primary",
+    border: "border-primary",
+    glow: "shadow-[0_0_20px_hsl(var(--primary)/0.4)]",
+  },
+  {
+    id: "bot",
+    label: "WhatsApp Bot VCF",
+    shortLabel: "Bot VCF",
+    icon: <Smartphone className="w-5 h-5" />,
+    accent: "text-secondary",
+    border: "border-secondary",
+    glow: "shadow-[0_0_20px_hsl(var(--secondary)/0.4)]",
+  },
+  {
+    id: "payment",
+    label: "Payment Proof",
+    shortLabel: "Payment",
+    icon: <CreditCard className="w-5 h-5" />,
+    accent: "text-amber-400",
+    border: "border-amber-500",
+    glow: "shadow-[0_0_20px_rgba(251,191,36,0.35)]",
+  },
+];
+
+const variants = {
+  enter: { opacity: 0, y: 18, scale: 0.98 },
+  center: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.28, ease: "easeOut" as const } },
+  exit: { opacity: 0, y: -12, scale: 0.98, transition: { duration: 0.18, ease: "easeIn" as const } },
+};
+
 export default function LandingPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("standard");
+
   const { data: verifiedUsers } = useGetVerifiedUsers({
     query: { queryKey: getGetVerifiedUsersQueryKey(), refetchInterval: 10000 }
   });
@@ -56,13 +101,8 @@ export default function LandingPage() {
   useEffect(() => {
     const stdToken = localStorage.getItem("vcf_claim_standard");
     const botToken = localStorage.getItem("vcf_claim_bot");
-
-    if (stdToken) {
-      void tryRedirectWithClaimToken(stdToken, "standard");
-    }
-    if (botToken) {
-      void tryRedirectWithClaimToken(botToken, "bot");
-    }
+    if (stdToken) void tryRedirectWithClaimToken(stdToken, "standard");
+    if (botToken) void tryRedirectWithClaimToken(botToken, "bot");
   }, []);
 
   const standardTarget = settings?.standardTarget ?? 500;
@@ -79,160 +119,247 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen pb-20">
+      {/* Background */}
       <div className="fixed inset-0 z-[-1] pointer-events-none">
         <img
           src={`${import.meta.env.BASE_URL}images/hero-bg.png`}
-          alt="Cyberpunk Grid"
+          alt=""
           className="w-full h-full object-cover opacity-20 mix-blend-screen"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/95 to-background"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/95 to-background" />
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
-        {/* Header */}
-        <header className="flex flex-col items-center justify-center text-center mb-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-10">
+
+        {/* ── Header ── */}
+        <header className="flex flex-col items-center text-center mb-10">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", bounce: 0.5 }}
-            className="mb-6 relative"
+            className="mb-5 relative"
           >
-            <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full"></div>
+            <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
             <img
               src={`${import.meta.env.BASE_URL}images/logo.png`}
               alt="Nutterx Logo"
-              className="w-32 h-32 object-contain relative z-10 drop-shadow-[0_0_15px_hsl(var(--primary))]"
+              className="w-28 h-28 object-contain relative z-10 drop-shadow-[0_0_15px_hsl(var(--primary))]"
             />
           </motion.div>
 
           <h1
-            className="text-4xl md:text-6xl font-bold tracking-tighter cyber-glitch mb-4 text-white"
+            className="text-4xl md:text-5xl font-bold tracking-tighter cyber-glitch mb-3 text-white"
             data-text="NUTTERX VCF SYSTEM"
           >
             NUTTERX VCF SYSTEM
           </h1>
-          <div className="flex items-center justify-center space-x-2 text-primary font-mono bg-primary/10 px-4 py-1.5 rounded-full border border-primary/30">
+          <div className="flex items-center gap-2 text-primary font-mono bg-primary/10 px-4 py-1.5 rounded-full border border-primary/30 text-sm">
             <Activity className="w-4 h-4 animate-pulse" />
-            <span className="text-sm">NETWORK SECURE AND OPERATIONAL</span>
+            NETWORK SECURE AND OPERATIONAL
           </div>
         </header>
 
-        {/*
-          Flat grid — 1 col on mobile, 2 cols on desktop.
-          CSS order controls the mobile stack:
-            1  Standard header
-            2  Standard capacity bar
-            3  Standard registration form
-            4  Bot header          (mt-12 gap above on mobile only)
-            5  Bot capacity bar
-            6  Bot registration form
-            7  Standard directory  ← moved below bot form on mobile
-            8  Bot directory
-          On desktop (lg): col-start pins each item to its column;
-          auto-placement stacks them in rows within that column.
-        */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-x-8 lg:gap-y-6">
-
-          {/* 1 — Standard column header */}
-          <div className="flex items-center space-x-3 order-1 lg:order-none lg:col-start-1">
-            <ShieldAlert className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-bold text-white tracking-widest">STANDARD PROTOCOL</h2>
-          </div>
-
-          {/* 2 — Standard capacity bar */}
-          <div className="order-2 lg:order-none lg:col-start-1">
-            <CapacityBar
-              title="Global VCF Network"
-              users={stdUsers}
-              targetCount={standardTarget}
-              accentColor="primary"
-              isTargetReached={stdTargetReached}
-              onDownloadVcf={stdTargetReached ? () => downloadVcf("standard") : undefined}
-              verificationNote={{ kind: "payment", amount: "10", mpesaNumber: "0758891491" }}
-            />
-          </div>
-
-          {/* 3 — Standard registration form */}
-          <div className="order-3 lg:order-none lg:col-start-1">
-            <RegistrationForm
-              type="standard"
-              title="Standard Registration"
-              description="Join the massive global VCF network. Fill your details to get verified."
-              crossRegisterLabel="Also initialize WhatsApp Bot VCF registration"
-              accentColor="primary"
-            />
-          </div>
-
-          {/* 4 — Standard payment confirmation form (Standard column only) */}
-          <div className="order-4 lg:order-none lg:col-start-1">
-            <PaymentConfirmationForm />
-          </div>
-
-          {/* 5 — Bot column header (extra top margin on mobile only) */}
-          <div className="flex items-center space-x-3 order-5 mt-6 lg:mt-0 lg:order-none lg:col-start-2">
-            <Smartphone className="w-6 h-6 text-secondary" />
-            <h2 className="text-2xl font-bold text-white tracking-widest">BOT PROTOCOL</h2>
-          </div>
-
-          {/* 6 — Bot capacity bar */}
-          <div className="order-6 lg:order-none lg:col-start-2">
-            <CapacityBar
-              title="Verified Bot Owners"
-              users={botUsers}
-              targetCount={botTarget}
-              accentColor="secondary"
-              isTargetReached={botTargetReached}
-              onDownloadVcf={botTargetReached ? () => downloadVcf("bot") : undefined}
-              verificationNote={{ kind: "free" }}
-            />
-          </div>
-
-          {/* 7 — Bot registration form */}
-          <div className="order-7 lg:order-none lg:col-start-2">
-            <RegistrationForm
-              type="bot"
-              title="Bot Owner Registration"
-              description="Exclusive network for WhatsApp bot operators."
-              crossRegisterLabel="Also initialize Standard VCF registration"
-              accentColor="secondary"
-            />
-          </div>
-
-          {/* 8 — Standard verified directory — on mobile appears AFTER bot registration form */}
-          <div className="order-8 lg:order-none lg:col-start-1">
-            <UserDirectory
-              users={stdUsers}
-              accentColor="primary"
-              verificationNote={{ kind: "payment", amount: "10", mpesaNumber: "0758891491" }}
-            />
-          </div>
-
-          {/* 9 — Bot verified directory */}
-          <div className="order-9 lg:order-none lg:col-start-2">
-            <UserDirectory
-              users={botUsers}
-              accentColor="secondary"
-              verificationNote={{ kind: "free" }}
-            />
-          </div>
-
+        {/* ── Hero Tab Switcher ── */}
+        <div className="flex gap-3 mb-8">
+          {TABS.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  flex-1 flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2
+                  rounded-xl border-2 px-3 py-3.5 sm:py-4 font-bold tracking-wider
+                  transition-all duration-200 cursor-pointer
+                  ${active
+                    ? `${tab.border} ${tab.accent} bg-black/60 ${tab.glow}`
+                    : "border-border/40 text-muted-foreground bg-black/20 hover:border-border/70 hover:text-white hover:bg-black/40"
+                  }
+                `}
+              >
+                <span className={`${active ? tab.accent : ""} transition-colors`}>{tab.icon}</span>
+                <span className="text-[11px] sm:text-sm leading-tight text-center">
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.shortLabel}</span>
+                </span>
+                {active && (
+                  <ChevronRight className={`hidden sm:block w-4 h-4 ml-auto ${tab.accent} opacity-60`} />
+                )}
+              </button>
+            );
+          })}
         </div>
+
+        {/* ── Tab Content ── */}
+        <AnimatePresence mode="wait">
+          {activeTab === "standard" && (
+            <motion.div
+              key="standard"
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              className="space-y-5"
+            >
+              {/* Capacity bar — no payment note here, it lives inside the form section */}
+              <CapacityBar
+                title="Global VCF Network"
+                users={stdUsers}
+                targetCount={standardTarget}
+                accentColor="primary"
+                isTargetReached={stdTargetReached}
+                onDownloadVcf={stdTargetReached ? () => downloadVcf("standard") : undefined}
+              />
+
+              {/* Payment notice — lives inside the action section */}
+              <div className="rounded-xl border border-amber-500/50 bg-amber-500/8 px-5 py-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                  <span className="text-sm font-bold tracking-widest text-amber-300 uppercase">
+                    Verification Fee Required
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg bg-black/40 border border-amber-500/30 px-4 py-3">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-mono text-muted-foreground">Send exactly</p>
+                    <p className="text-2xl font-bold text-white tracking-widest">
+                      Ksh. <span className="text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]">10</span>
+                    </p>
+                    <p className="text-xs font-mono text-muted-foreground">via M-Pesa to</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-mono text-muted-foreground mb-1">M-PESA NUMBER</p>
+                    <p className="text-2xl font-bold tracking-[0.2em] text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]">
+                      0758891491
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs font-mono text-amber-200/70 leading-relaxed">
+                  After paying, fill your details below and then switch to the{" "}
+                  <button
+                    onClick={() => setActiveTab("payment")}
+                    className="font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200 cursor-pointer"
+                  >
+                    Payment Proof
+                  </button>{" "}
+                  tab to submit your M-Pesa confirmation message.
+                </p>
+              </div>
+
+              <RegistrationForm
+                type="standard"
+                title="Standard Registration"
+                description="Join the massive global VCF network. Fill your details to get verified."
+                crossRegisterLabel="Also initialize WhatsApp Bot VCF registration"
+                accentColor="primary"
+              />
+            </motion.div>
+          )}
+
+          {activeTab === "bot" && (
+            <motion.div
+              key="bot"
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              className="space-y-5"
+            >
+              <CapacityBar
+                title="Verified Bot Owners"
+                users={botUsers}
+                targetCount={botTarget}
+                accentColor="secondary"
+                isTargetReached={botTargetReached}
+                onDownloadVcf={botTargetReached ? () => downloadVcf("bot") : undefined}
+                verificationNote={{ kind: "free" }}
+              />
+
+              <RegistrationForm
+                type="bot"
+                title="Bot Owner Registration"
+                description="Exclusive network for WhatsApp bot operators. Registration is completely free."
+                crossRegisterLabel="Also initialize Standard VCF registration"
+                accentColor="secondary"
+              />
+            </motion.div>
+          )}
+
+          {activeTab === "payment" && (
+            <motion.div
+              key="payment"
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+            >
+              <PaymentConfirmationForm />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Verified Directories ── */}
+        <div className="mt-12 space-y-3">
+          <h3 className="text-xs font-bold font-mono text-muted-foreground uppercase tracking-widest text-center">
+            — Verified Member Directories —
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {/* Standard Directory */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <ShieldAlert className="w-4 h-4 text-primary" />
+                <span className="text-xs font-bold tracking-widest text-primary uppercase">
+                  Standard VCF Directory
+                </span>
+                <span className="ml-auto text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5">
+                  Ksh. 10 fee
+                </span>
+              </div>
+              <UserDirectory
+                users={stdUsers}
+                accentColor="primary"
+                verificationNote={{ kind: "payment", amount: "10", mpesaNumber: "0758891491" }}
+              />
+            </div>
+
+            {/* Bot Directory */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <Smartphone className="w-4 h-4 text-secondary" />
+                <span className="text-xs font-bold tracking-widest text-secondary uppercase">
+                  Bot VCF Directory
+                </span>
+                <span className="ml-auto text-[10px] font-mono text-green-400 bg-green-500/10 border border-green-500/30 rounded-full px-2 py-0.5">
+                  FREE
+                </span>
+              </div>
+              <UserDirectory
+                users={botUsers}
+                accentColor="secondary"
+                verificationNote={{ kind: "free" }}
+              />
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* Footer */}
       <footer className="fixed bottom-0 left-0 w-full p-4 bg-background/80 backdrop-blur-md border-t border-border z-50">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between text-xs font-mono">
-          <p className="text-muted-foreground mb-2 sm:mb-0">
+        <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between text-xs font-mono gap-2">
+          <p className="text-muted-foreground">
             © {new Date().getFullYear()} NUTTERX SYNDICATE. ALL RIGHTS RESERVED.
           </p>
           <a
             href="https://wa.me/254713881613"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center space-x-2 text-primary hover:text-primary/80 transition-colors drop-shadow-[0_0_5px_hsl(var(--primary)/0.5)]"
+            className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors drop-shadow-[0_0_5px_hsl(var(--primary)/0.5)]"
           >
-            <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
-            <span>SUPPORT CONTACT: +254 713 881613</span>
+            <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+            SUPPORT CONTACT: +254 713 881613
           </a>
         </div>
       </footer>
