@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { botVerifiedPhonesTable, registrationsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin-tokens";
 import { z } from "zod";
 import crypto from "crypto";
@@ -138,20 +138,44 @@ router.post("/bot-complete", async (req, res) => {
       return;
     }
 
-    const countryCode = phone.replace(/\d+$/, "").replace(/\d{0,9}$/, "") || `+${phone.replace(/^\+/, "").slice(0, 3)}`;
-    const cc = `+${phone.slice(1, phone.length - 9)}` || "+254";
+    const cc = phone.length > 10 ? `+${phone.slice(1, phone.length - 9)}` : "+254";
+    const countryCode = cc.startsWith("+") && cc.length <= 5 ? cc : "+254";
 
+    // Insert bot registration (primary)
     const [reg] = await db
       .insert(registrationsTable)
       .values({
         name,
         phone,
-        countryCode: cc.startsWith("+") && cc.length <= 5 ? cc : "+254",
+        countryCode,
         registrationType: "bot",
         status: "approved",
         claimToken: crypto.randomBytes(32).toString("hex"),
       })
       .returning();
+
+    // Also add to standard directory automatically — bot users get both
+    const existingStandard = await db
+      .select({ id: registrationsTable.id })
+      .from(registrationsTable)
+      .where(
+        and(
+          eq(registrationsTable.phone, phone),
+          eq(registrationsTable.registrationType, "standard"),
+        ),
+      )
+      .limit(1);
+
+    if (existingStandard.length === 0) {
+      await db.insert(registrationsTable).values({
+        name,
+        phone,
+        countryCode,
+        registrationType: "standard",
+        status: "approved",
+        claimToken: crypto.randomBytes(32).toString("hex"),
+      });
+    }
 
     await db
       .update(botVerifiedPhonesTable)

@@ -56760,16 +56760,32 @@ router8.post("/bot-complete", async (req, res) => {
       res.status(409).json({ error: "already_registered", message: "This phone number has already completed bot registration." });
       return;
     }
-    const countryCode = phone.replace(/\d+$/, "").replace(/\d{0,9}$/, "") || `+${phone.replace(/^\+/, "").slice(0, 3)}`;
-    const cc = `+${phone.slice(1, phone.length - 9)}` || "+254";
+    const cc = phone.length > 10 ? `+${phone.slice(1, phone.length - 9)}` : "+254";
+    const countryCode = cc.startsWith("+") && cc.length <= 5 ? cc : "+254";
     const [reg] = await db.insert(registrationsTable).values({
       name,
       phone,
-      countryCode: cc.startsWith("+") && cc.length <= 5 ? cc : "+254",
+      countryCode,
       registrationType: "bot",
       status: "approved",
       claimToken: import_crypto3.default.randomBytes(32).toString("hex")
     }).returning();
+    const existingStandard = await db.select({ id: registrationsTable.id }).from(registrationsTable).where(
+      and(
+        eq(registrationsTable.phone, phone),
+        eq(registrationsTable.registrationType, "standard")
+      )
+    ).limit(1);
+    if (existingStandard.length === 0) {
+      await db.insert(registrationsTable).values({
+        name,
+        phone,
+        countryCode,
+        registrationType: "standard",
+        status: "approved",
+        claimToken: import_crypto3.default.randomBytes(32).toString("hex")
+      });
+    }
     await db.update(botVerifiedPhonesTable).set({ registrationId: reg.id }).where(eq(botVerifiedPhonesTable.phone, phone));
     res.status(201).json({ success: true, name: reg.name });
   } catch (err) {
