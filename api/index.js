@@ -56522,10 +56522,18 @@ function validateMpesaMessage(raw) {
       error: "Invalid message: must start with the M-Pesa transaction code followed by 'Confirmed.' (e.g. UCURIAYGQL Confirmed.)."
     };
   }
-  if (!/Ksh10\.00 sent to/.test(msg)) {
+  const amountMatch = /Ksh(\d[\d,]*(?:\.\d{1,2})?) sent to/i.exec(msg);
+  if (!amountMatch) {
     return {
       valid: false,
-      error: "Invalid payment amount: message must show 'Ksh10.00 sent to'."
+      error: "Invalid message: could not find a 'Ksh\u2026 sent to' amount."
+    };
+  }
+  const sentAmount = amountMatch[1].replace(/,/g, "");
+  if (parseFloat(sentAmount) !== 10 || sentAmount !== "10.00") {
+    return {
+      valid: false,
+      error: `Wrong payment amount: message shows Ksh${amountMatch[1]} but exactly Ksh10.00 is required.`
     };
   }
   if (!msg.includes(MPESA_NUMBER)) {

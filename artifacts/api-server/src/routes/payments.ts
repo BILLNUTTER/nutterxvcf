@@ -38,11 +38,19 @@ function validateMpesaMessage(raw: string): ValidationResult | ValidationError {
     };
   }
 
-  // 2. Must show the correct payment amount
-  if (!/Ksh10\.00 sent to/.test(msg)) {
+  // 2. Extract the sent amount and verify it is exactly Ksh 10.00
+  const amountMatch = /Ksh(\d[\d,]*(?:\.\d{1,2})?) sent to/i.exec(msg);
+  if (!amountMatch) {
     return {
       valid: false,
-      error: "Invalid payment amount: message must show 'Ksh10.00 sent to'.",
+      error: "Invalid message: could not find a 'Ksh… sent to' amount.",
+    };
+  }
+  const sentAmount = amountMatch[1].replace(/,/g, "");
+  if (parseFloat(sentAmount) !== 10.00 || sentAmount !== "10.00") {
+    return {
+      valid: false,
+      error: `Wrong payment amount: message shows Ksh${amountMatch[1]} but exactly Ksh10.00 is required.`,
     };
   }
 

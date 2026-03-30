@@ -20,8 +20,12 @@ function clientValidateMpesa(msg: string): string | null {
   if (!t) return "Please paste your M-Pesa confirmation message.";
   if (!/^[A-Z0-9]{8,12} Confirmed\./.test(t))
     return "Invalid message: must start with the M-Pesa code followed by 'Confirmed.' (e.g. UCURIAYGQL Confirmed.)";
-  if (!/Ksh10\.00 sent to/.test(t))
-    return "Invalid payment amount: message must show 'Ksh10.00 sent to'.";
+  const amountMatch = /Ksh(\d[\d,]*(?:\.\d{1,2})?) sent to/i.exec(t);
+  if (!amountMatch)
+    return "Invalid message: could not find a 'Ksh… sent to' amount.";
+  const sentAmt = amountMatch[1].replace(/,/g, "");
+  if (parseFloat(sentAmt) !== 10.00 || sentAmt !== "10.00")
+    return `Wrong payment amount: message shows Ksh${amountMatch[1]} but exactly Ksh10.00 is required.`;
   if (!t.includes(MPESA_NUMBER))
     return `Invalid recipient: payment must be sent to ${MPESA_NUMBER}.`;
   if (!/New M-PESA balance is Ksh/.test(t))
