@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, Smartphone, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { CopyableNumber } from "@/components/CopyableNumber";
 
 const ADMIN_WHATSAPP = "+254713881613";
 
@@ -63,6 +64,17 @@ export function PaymentConfirmationForm() {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Prominent payment number */}
+        <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/8 py-4 px-3 flex flex-col items-center gap-1 shadow-[0_0_20px_rgba(251,191,36,0.12)]">
+          <p className="text-[10px] font-bold font-mono uppercase tracking-widest text-amber-400/80">
+            Step 1 — Send <span className="text-amber-300">Ksh. 10</span> via M-Pesa to:
+          </p>
+          <CopyableNumber number="0758891491" label="M-Pesa Till / Number" size="lg" />
+          <p className="text-[10px] font-mono text-amber-400/60 mt-0.5">
+            Step 2 — Paste your confirmation SMS below
+          </p>
+        </div>
+
         <AnimatePresence mode="wait">
           {submitted ? (
             <motion.div

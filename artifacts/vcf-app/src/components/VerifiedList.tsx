@@ -3,6 +3,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { User, ShieldCheck, PauseCircle, Download, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { CopyableNumber } from "@/components/CopyableNumber";
 
 type VerificationNote =
   | { kind: "payment"; amount: string; mpesaNumber: string }
@@ -61,14 +62,18 @@ export function CapacityBar({
       {/* Verification requirement notice */}
       {verificationNote && (
         verificationNote.kind === "payment" ? (
-          <div className="flex items-start gap-2.5 rounded-lg bg-amber-500/10 border border-amber-500/40 px-3 py-2.5 text-amber-300">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-            <p className="text-xs font-mono leading-relaxed">
-              <span className="font-bold text-amber-300 uppercase tracking-wide">Verification Fee Required</span>
-              <br />
-              Send <span className="font-bold text-white">Ksh. {verificationNote.amount}</span> via M-Pesa to{" "}
-              <span className="font-bold text-white tracking-widest">{verificationNote.mpesaNumber}</span>{" "}
-              then paste your confirmation message below to complete verification.
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/40 px-4 py-4 text-amber-300 space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span className="text-xs font-bold font-mono uppercase tracking-wide text-amber-300">
+                Verification Fee Required — Send Ksh. {verificationNote.amount} to:
+              </span>
+            </div>
+            <div className="flex justify-center">
+              <CopyableNumber number={verificationNote.mpesaNumber} label="M-Pesa Number" size="lg" />
+            </div>
+            <p className="text-[11px] font-mono text-amber-300/70 text-center">
+              After paying, paste your M-Pesa confirmation message in the <span className="text-white font-bold">Payment</span> tab.
             </p>
           </div>
         ) : (
@@ -133,11 +138,10 @@ export function UserDirectory({ users, accentColor, verificationNote }: UserDire
 
       {/* Directory-level verification reminder */}
       {verificationNote?.kind === "payment" && (
-        <p className="text-[11px] font-mono text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1.5 mb-3 leading-snug">
-          These members paid <span className="font-bold text-amber-300">Ksh. {verificationNote.amount}</span> via M-Pesa to{" "}
-          <span className="font-bold text-amber-300 tracking-widest">{verificationNote.mpesaNumber}</span>{" "}
-          and submitted their confirmation. Do the same to join.
-        </p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-3 text-[11px] font-mono text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1.5 leading-snug">
+          <span>Pay <span className="font-bold text-amber-300">Ksh. {verificationNote.amount}</span> to join →</span>
+          <CopyableNumber number={verificationNote.mpesaNumber} size="sm" />
+        </div>
       )}
 
       {users.length === 0 ? (
