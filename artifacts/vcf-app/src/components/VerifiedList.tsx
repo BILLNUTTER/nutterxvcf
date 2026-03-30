@@ -31,32 +31,22 @@ export function CapacityBar({
   const approvedCount = users.filter((u) => u.status === "approved").length;
   const progress = Math.min((approvedCount / targetCount) * 100, 100);
 
-  const neonText = accentColor === "primary"
-    ? "text-primary drop-shadow-[0_0_5px_hsl(var(--primary)/0.5)]"
-    : "text-secondary drop-shadow-[0_0_5px_hsl(var(--secondary)/0.5)]";
-  const bgIndicator = accentColor === "primary" ? "bg-primary" : "bg-secondary";
-  const borderClass = accentColor === "primary" ? "border-primary/30" : "border-secondary/30";
-  const badgeBg = accentColor === "primary"
-    ? "bg-primary/20 text-primary border-primary"
-    : "bg-secondary/20 text-secondary border-secondary";
-  const btnClass = accentColor === "primary"
-    ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20 shadow-[0_0_10px_hsl(var(--primary)/0.3)]"
-    : "bg-secondary/10 border-secondary/50 text-secondary hover:bg-secondary/20 shadow-[0_0_10px_hsl(var(--secondary)/0.3)]";
-
   return (
-    <div className={`p-5 rounded-xl border ${borderClass} bg-black/40 backdrop-blur-md space-y-3`}>
+    <div className="p-5 rounded-xl border border-orange-500/40 bg-black/40 backdrop-blur-md space-y-3 shadow-[0_0_18px_rgba(249,115,22,0.08)]">
       <div className="flex items-center justify-between">
-        <h3 className={`text-lg font-bold uppercase tracking-widest ${neonText}`}>{title}</h3>
-        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${badgeBg} drop-shadow-md`}>
+        <h3 className="text-lg font-bold uppercase tracking-widest text-orange-400 drop-shadow-[0_0_6px_rgba(249,115,22,0.55)]">
+          {title}
+        </h3>
+        <span className="px-3 py-1 rounded-full text-xs font-bold border bg-orange-500/20 text-orange-300 border-orange-500/60 drop-shadow-md">
           {approvedCount} VERIFIED
         </span>
       </div>
       <div className="space-y-1.5">
         <div className="flex justify-between text-xs font-mono text-muted-foreground">
           <span>SYSTEM CAPACITY</span>
-          <span>{approvedCount} / {targetCount}</span>
+          <span className="text-orange-300/80">{approvedCount} / {targetCount}</span>
         </div>
-        <Progress value={progress} indicatorColor={bgIndicator} className="h-2" />
+        <Progress value={progress} indicatorColor="bg-orange-500" className="h-2.5 bg-orange-950/60" />
       </div>
 
       {/* Verification requirement notice */}
@@ -94,7 +84,7 @@ export function CapacityBar({
         >
           <button
             onClick={onDownloadVcf}
-            className={`w-full mt-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border font-bold text-sm uppercase tracking-widest transition-colors ${btnClass}`}
+            className="w-full mt-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border font-bold text-sm uppercase tracking-widest transition-colors bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 shadow-[0_0_10px_rgba(249,115,22,0.25)]"
           >
             <Download className="w-4 h-4" />
             DOWNLOAD VCF CONTACTS
