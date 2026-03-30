@@ -1,11 +1,12 @@
 {
   "version": 2,
-  "installCommand": "npm install -g pnpm && pnpm install",
+  "installCommand": "pnpm install",
   "buildCommand": "pnpm --filter @workspace/api-server run build:handler && BASE_PATH=/ pnpm --filter @workspace/vcf-app run build",
   "outputDirectory": "artifacts/vcf-app/dist/public",
   "framework": null,
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/:path*", "destination": "/index.html" }
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
