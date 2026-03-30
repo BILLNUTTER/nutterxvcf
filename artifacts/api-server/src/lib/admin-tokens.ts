@@ -2,9 +2,13 @@ import crypto from "crypto";
 import { type Request, type Response, type NextFunction } from "express";
 
 // Use a stable secret from env so all Vercel instances share the same key.
-// If not set, fall back to a random value (dev only — tokens won't survive restarts).
-const ADMIN_TOKEN_SECRET =
-  process.env.ADMIN_TOKEN_SECRET ?? crypto.randomBytes(32).toString("hex");
+// If ADMIN_TOKEN_SECRET is not set, derive a stable fallback from ADMIN_PASSWORD
+// so that all Vercel instances with the same credentials produce compatible tokens.
+// Setting ADMIN_TOKEN_SECRET explicitly is still recommended for best security.
+const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET
+  ?? (process.env.ADMIN_PASSWORD
+    ? crypto.createHash("sha256").update(`admin-token-${process.env.ADMIN_PASSWORD}`).digest("hex")
+    : crypto.randomBytes(32).toString("hex"));
 
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
