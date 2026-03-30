@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import PhoneInput, { parsePhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
@@ -11,6 +11,7 @@ import { playSuccessSound } from "@/lib/utils";
 
 const ADMIN_WHATSAPP = "0713881613";
 const ADMIN_WA_LINK = "https://wa.me/254713881613";
+const GROUP_LINK = "https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t";
 
 type CheckStatus = "idle" | "checking" | "not_verified" | "verified" | "registered";
 type FlowStep = "contact" | "check" | "name" | "done";
@@ -90,6 +91,13 @@ export function BotFlow() {
     },
     onError: (err: Error) => setError(err.message),
   });
+
+  // Redirect to WhatsApp group as soon as registration is done
+  useEffect(() => {
+    if (flowStep === "done") {
+      window.location.href = GROUP_LINK;
+    }
+  }, [flowStep]);
 
   const handleCheck = () => {
     setError("");
@@ -290,16 +298,25 @@ export function BotFlow() {
 
             {flowStep === "done" && (
               <motion.div key="done" variants={variants} initial="enter" animate="center" exit="exit" className="flex flex-col items-center gap-4 py-8 text-center">
-                <CheckCircle2 className="w-16 h-16 text-green-400 drop-shadow-[0_0_15px_rgba(74,222,128,0.6)]" />
+                <div className="w-20 h-20 mx-auto bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/50 relative">
+                  <CheckCircle2 className="w-10 h-10 text-green-400 drop-shadow-[0_0_15px_rgba(74,222,128,0.6)]" />
+                  <div className="absolute inset-0 rounded-full border border-green-500/50 animate-ping" />
+                </div>
                 <div>
                   <p className="font-bold text-green-300 tracking-widest text-lg">REGISTRATION COMPLETE!</p>
                   <p className="text-sm font-mono text-muted-foreground mt-2">
-                    Welcome, <span className="text-secondary font-bold">{name}</span>! Your number has been added to the Bot VCF network.
+                    Welcome, <span className="text-secondary font-bold">{name}</span>!
                   </p>
-                  <p className="text-xs font-mono text-muted-foreground mt-2">
-                    Your contact will appear in the VCF directory below.
+                  <p className="text-xs font-mono text-green-400/80 mt-3">
+                    Taking you to the WhatsApp group...
                   </p>
                 </div>
+                <a
+                  href={GROUP_LINK}
+                  className="mt-2 text-xs font-mono text-secondary underline underline-offset-2"
+                >
+                  Tap here if not redirected automatically
+                </a>
               </motion.div>
             )}
 
