@@ -3,10 +3,9 @@ import { useMutation } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Smartphone, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Loader2, Smartphone, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const MPESA_NUMBER = "0758891491";
 const ADMIN_WHATSAPP = "+254713881613";
 
 interface SubmitPayload {
@@ -64,19 +63,6 @@ export function PaymentConfirmationForm() {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* M-Pesa number highlight */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-lg bg-amber-500/10 border border-amber-500/40 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="text-xs font-mono text-amber-200">
-              Send <span className="font-bold text-white">Ksh. 10</span> to M-Pesa number:
-            </span>
-          </div>
-          <span className="text-xl font-bold tracking-widest text-amber-300 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]">
-            {MPESA_NUMBER}
-          </span>
-        </div>
-
         <AnimatePresence mode="wait">
           {submitted ? (
             <motion.div

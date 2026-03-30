@@ -9,7 +9,6 @@ import {
   ShieldAlert,
   Smartphone,
   CreditCard,
-  AlertTriangle,
   ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -201,7 +200,6 @@ export default function LandingPage() {
               exit="exit"
               className="space-y-5"
             >
-              {/* Capacity bar — no payment note here, it lives inside the form section */}
               <CapacityBar
                 title="Global VCF Network"
                 users={stdUsers}
@@ -210,43 +208,6 @@ export default function LandingPage() {
                 isTargetReached={stdTargetReached}
                 onDownloadVcf={stdTargetReached ? () => downloadVcf("standard") : undefined}
               />
-
-              {/* Payment notice — lives inside the action section */}
-              <div className="rounded-xl border border-amber-500/50 bg-amber-500/8 px-5 py-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                  <span className="text-sm font-bold tracking-widest text-amber-300 uppercase">
-                    Verification Fee Required
-                  </span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg bg-black/40 border border-amber-500/30 px-4 py-3">
-                  <div className="space-y-0.5">
-                    <p className="text-xs font-mono text-muted-foreground">Send exactly</p>
-                    <p className="text-2xl font-bold text-white tracking-widest">
-                      Ksh. <span className="text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]">10</span>
-                    </p>
-                    <p className="text-xs font-mono text-muted-foreground">via M-Pesa to</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-mono text-muted-foreground mb-1">M-PESA NUMBER</p>
-                    <p className="text-2xl font-bold tracking-[0.2em] text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]">
-                      0758891491
-                    </p>
-                  </div>
-                </div>
-
-                <p className="text-xs font-mono text-amber-200/70 leading-relaxed">
-                  After paying, fill your details below and then switch to the{" "}
-                  <button
-                    onClick={() => setActiveTab("payment")}
-                    className="font-bold text-amber-300 underline underline-offset-2 hover:text-amber-200 cursor-pointer"
-                  >
-                    Payment Proof
-                  </button>{" "}
-                  tab to submit your M-Pesa confirmation message.
-                </p>
-              </div>
 
               <RegistrationForm
                 type="standard"
