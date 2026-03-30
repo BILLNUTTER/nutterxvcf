@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useAdminLogin, useGetAdminRegistrations, useUpdateRegistrationStatus } from "@workspace/api-client-react";
-import { GetAdminRegistrationsType } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useAdminLogin, useGetAdminRegistrations, useUpdateRegistrationStatus, getGetAdminRegistrationsQueryKey } from "@workspace/api-client-react";
+import type { GetAdminRegistrationsType } from "@workspace/api-client-react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -117,7 +117,7 @@ function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType, t
   const queryClient = useQueryClient();
   const { data, isLoading } = useGetAdminRegistrations(
     { type },
-    { request: { headers: { "x-admin-token": token } }, query: { refetchInterval: 5000 } }
+    { request: { headers: { "x-admin-token": token } }, query: { queryKey: getGetAdminRegistrationsQueryKey({ type }), refetchInterval: 5000 } }
   );
 
   const updateMutation = useUpdateRegistrationStatus({
@@ -175,7 +175,7 @@ function RegistrationTable({ type, token }: { type: GetAdminRegistrationsType, t
                   <TableCell className="font-mono text-muted-foreground">{reg.countryCode}</TableCell>
                   <TableCell className="font-mono text-xs">{format(new Date(reg.createdAt), 'yyyy-MM-dd HH:mm')}</TableCell>
                   <TableCell>
-                    <Badge variant={reg.status as any}>{reg.status}</Badge>
+                    <Badge variant={reg.status}>{reg.status}</Badge>
                   </TableCell>
                   <TableCell className="text-right space-x-2">
                     {reg.status === 'pending' && (

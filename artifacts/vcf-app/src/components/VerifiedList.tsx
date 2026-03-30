@@ -1,4 +1,4 @@
-import { VerifiedUser } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { VerifiedUser } from "@workspace/api-client-react";
 import { Progress } from "@/components/ui/progress";
 import { User, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";

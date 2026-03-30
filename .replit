@@ -29,6 +29,6 @@ timeoutMs = 20000
 
 [userenv.shared]
 ADMIN_USERNAME = "nutterx_admin"
-ADMIN_PASSWORD = "NutterxAdmin2024!"
+ADMIN_TOKEN_SECRET = "6a214f6e6f88397ce9518e135cc6a231211e49a9f5abffe9362b4debdab978df"
 STANDARD_GROUP_LINK = "https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t"
 BOT_GROUP_LINK = "https://chat.whatsapp.com/placeholder-bot-link"

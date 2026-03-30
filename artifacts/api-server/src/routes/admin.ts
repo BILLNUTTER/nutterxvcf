@@ -13,12 +13,16 @@ import crypto from "crypto";
 
 const router: IRouter = Router();
 
-const ADMIN_TOKEN_SECRET = "nutterx-admin-token-secret";
+const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET;
+if (!ADMIN_TOKEN_SECRET) {
+  throw new Error("ADMIN_TOKEN_SECRET environment variable must be set");
+}
+
 const validTokens = new Set<string>();
 
 function generateToken(username: string): string {
   const token = crypto
-    .createHmac("sha256", ADMIN_TOKEN_SECRET)
+    .createHmac("sha256", ADMIN_TOKEN_SECRET!)
     .update(`${username}-${Date.now()}`)
     .digest("hex");
   validTokens.add(token);
@@ -42,8 +46,13 @@ router.post("/admin/login", (req, res) => {
   }
 
   const { username, password } = parsed.data;
-  const adminUsername = process.env.ADMIN_USERNAME ?? "nutterx_admin";
-  const adminPassword = process.env.ADMIN_PASSWORD ?? "NutterxAdmin2024!";
+  const adminUsername = process.env.ADMIN_USERNAME;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (!adminUsername || !adminPassword) {
+    res.status(500).json({ error: "server_error", message: "Admin credentials not configured" });
+    return;
+  }
 
   if (username !== adminUsername || password !== adminPassword) {
     res.status(401).json({ error: "invalid_credentials", message: "Invalid username or password" });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useSubmitRegistration } from "@workspace/api-client-react";
-import { RegistrationInputRegistrationType } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { RegistrationInputRegistrationType, ApiError } from "@workspace/api-client-react";
 import PhoneInput, { parsePhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -38,7 +38,7 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
         }
         setLocation("/pending");
       },
-      onError: (err: any) => {
+      onError: (err: ApiError) => {
         setError(err.message || "Registration failed. Please try again.");
       }
     }

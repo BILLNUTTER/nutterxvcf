@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useGetVerifiedUsers } from "@workspace/api-client-react";
+import { useGetVerifiedUsers, getGetVerifiedUsersQueryKey } from "@workspace/api-client-react";
 import { RegistrationForm } from "@/components/RegistrationForm";
 import { VerifiedList } from "@/components/VerifiedList";
 import { Activity, ShieldAlert, Smartphone } from "lucide-react";
@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 
 export default function LandingPage() {
   const { data: verifiedUsers } = useGetVerifiedUsers({
-    query: { refetchInterval: 10000 }
+    query: { queryKey: getGetVerifiedUsersQueryKey(), refetchInterval: 10000 }
   });
   const [groupLinks, setGroupLinks] = useState({
     standardGroupLink: "https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t",

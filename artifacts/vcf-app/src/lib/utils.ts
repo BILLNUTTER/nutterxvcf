@@ -5,9 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+interface WindowWithWebkitAudio extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
 export function playSuccessSound() {
   try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const win = window as WindowWithWebkitAudio;
+    const AudioContextClass = window.AudioContext || win.webkitAudioContext;
     if (!AudioContextClass) return;
     
     const ctx = new AudioContextClass();
