@@ -33,7 +33,8 @@ export default function LandingPage() {
 
     if (stdToken) {
       void tryRedirectWithClaimToken(stdToken, "standard");
-    } else if (botToken) {
+    }
+    if (botToken) {
       void tryRedirectWithClaimToken(botToken, "bot");
     }
   }, []);

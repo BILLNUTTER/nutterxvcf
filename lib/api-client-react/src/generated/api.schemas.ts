@@ -53,6 +53,37 @@ export interface Registration {
   createdAt: string;
 }
 
+export type RegistrationResponseRegistrationType =
+  (typeof RegistrationResponseRegistrationType)[keyof typeof RegistrationResponseRegistrationType];
+
+export const RegistrationResponseRegistrationType = {
+  standard: "standard",
+  bot: "bot",
+} as const;
+
+export type RegistrationResponseStatus =
+  (typeof RegistrationResponseStatus)[keyof typeof RegistrationResponseStatus];
+
+export const RegistrationResponseStatus = {
+  pending: "pending",
+  approved: "approved",
+  rejected: "rejected",
+} as const;
+
+/**
+ * Response returned after successfully submitting a registration. Includes a one-time claim token used to check approval status and obtain the group redirect link.
+ */
+export interface RegistrationResponse {
+  id: number;
+  name: string;
+  registrationType: RegistrationResponseRegistrationType;
+  status: RegistrationResponseStatus;
+  /** Opaque 64-hex-char token that proves registration ownership. Store client-side; required for /redirect. */
+  claimToken: string;
+  /** Claim token for the secondary cross-registration, if one was also created. */
+  crossClaimToken?: string;
+}
+
 export type VerifiedUserRegistrationType =
   (typeof VerifiedUserRegistrationType)[keyof typeof VerifiedUserRegistrationType];
 

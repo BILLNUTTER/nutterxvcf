@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useSubmitRegistration } from "@workspace/api-client-react";
-import type { RegistrationInputRegistrationType, ApiError } from "@workspace/api-client-react";
+import type { RegistrationInputRegistrationType, RegistrationResponse, ApiError } from "@workspace/api-client-react";
 import PhoneInput, { parsePhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -11,15 +11,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { playSuccessSound } from "@/lib/utils";
 import { Loader2, TerminalSquare } from "lucide-react";
 import { motion } from "framer-motion";
-
-interface RegistrationResponse {
-  id: number;
-  name: string;
-  registrationType: string;
-  status: string;
-  claimToken: string;
-  crossClaimToken?: string;
-}
 
 interface Props {
   type: "standard" | "bot";
@@ -38,13 +29,12 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
 
   const submitMutation = useSubmitRegistration({
     mutation: {
-      onSuccess: (data) => {
+      onSuccess: (data: RegistrationResponse) => {
         playSuccessSound();
-        const res = data as unknown as RegistrationResponse;
-        localStorage.setItem(`vcf_claim_${type}`, res.claimToken);
-        if (res.crossClaimToken) {
+        localStorage.setItem(`vcf_claim_${type}`, data.claimToken);
+        if (data.crossClaimToken) {
           const otherType = type === "standard" ? "bot" : "standard";
-          localStorage.setItem(`vcf_claim_${otherType}`, res.crossClaimToken);
+          localStorage.setItem(`vcf_claim_${otherType}`, data.crossClaimToken);
         }
         setLocation("/pending");
       },

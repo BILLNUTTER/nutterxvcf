@@ -25,6 +25,7 @@ import type {
   HealthStatus,
   Registration,
   RegistrationInput,
+  RegistrationResponse,
   UpdateStatusInput,
   VerifiedUsersResponse,
 } from "./api.schemas";
@@ -123,8 +124,8 @@ export const getSubmitRegistrationUrl = () => {
 export const submitRegistration = async (
   registrationInput: RegistrationInput,
   options?: RequestInit,
-): Promise<Registration> => {
-  return customFetch<Registration>(getSubmitRegistrationUrl(), {
+): Promise<RegistrationResponse> => {
+  return customFetch<RegistrationResponse>(getSubmitRegistrationUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
