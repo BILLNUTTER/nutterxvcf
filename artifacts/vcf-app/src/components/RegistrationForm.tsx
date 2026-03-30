@@ -99,21 +99,44 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-4">
+            {/* Highlighted input section */}
+            <div className={`rounded-xl border-2 p-4 space-y-4 ${
+              accentColor === "primary"
+                ? "border-primary/50 bg-primary/5 shadow-[0_0_20px_hsl(var(--primary)/0.12)]"
+                : "border-secondary/50 bg-secondary/5 shadow-[0_0_20px_hsl(var(--secondary)/0.12)]"
+            }`}>
               <div>
-                <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Full Name</label>
+                <label className={`text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 ${
+                  accentColor === "primary" ? "text-primary" : "text-secondary"
+                }`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
+                  Full Name
+                </label>
                 <Input
                   placeholder="e.g. Neo Anderson"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="font-mono"
+                  className={`font-mono h-11 text-white placeholder:text-white/30 bg-black/40 border-2 ${
+                    accentColor === "primary"
+                      ? "border-primary/40 focus:border-primary focus:shadow-[0_0_12px_hsl(var(--primary)/0.4)]"
+                      : "border-secondary/40 focus:border-secondary focus:shadow-[0_0_12px_hsl(var(--secondary)/0.4)]"
+                  } focus:outline-none transition-all`}
                   disabled={submitMutation.isPending}
                 />
               </div>
 
               <div>
-                <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-1 block">Phone Number</label>
-                <div className="relative">
+                <label className={`text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5 ${
+                  accentColor === "primary" ? "text-primary" : "text-secondary"
+                }`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
+                  Phone Number
+                </label>
+                <div className={`rounded-md border-2 overflow-hidden transition-all ${
+                  accentColor === "primary"
+                    ? "border-primary/40 focus-within:border-primary focus-within:shadow-[0_0_12px_hsl(var(--primary)/0.4)]"
+                    : "border-secondary/40 focus-within:border-secondary focus-within:shadow-[0_0_12px_hsl(var(--secondary)/0.4)]"
+                }`}>
                   <PhoneInput
                     international
                     defaultCountry="KE"
@@ -123,24 +146,24 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
                   />
                 </div>
               </div>
-
-              {crossRegisterLabel && (
-                <div className="flex items-center space-x-2 p-3 border border-border/50 rounded-md bg-background/30">
-                  <Checkbox
-                    id={`cross-register-${type}`}
-                    checked={alsoRegisterOther}
-                    onCheckedChange={(checked) => setAlsoRegisterOther(!!checked)}
-                    disabled={submitMutation.isPending}
-                  />
-                  <label
-                    htmlFor={`cross-register-${type}`}
-                    className="text-sm font-mono cursor-pointer"
-                  >
-                    {crossRegisterLabel}
-                  </label>
-                </div>
-              )}
             </div>
+
+            {crossRegisterLabel && (
+              <div className="flex items-center space-x-2 p-3 border border-border/50 rounded-md bg-background/30">
+                <Checkbox
+                  id={`cross-register-${type}`}
+                  checked={alsoRegisterOther}
+                  onCheckedChange={(checked) => setAlsoRegisterOther(!!checked)}
+                  disabled={submitMutation.isPending}
+                />
+                <label
+                  htmlFor={`cross-register-${type}`}
+                  className="text-sm font-mono cursor-pointer"
+                >
+                  {crossRegisterLabel}
+                </label>
+              </div>
+            )}
 
             {error && (
               <div className="p-3 border border-destructive bg-destructive/10 text-destructive text-sm font-mono rounded-md">
