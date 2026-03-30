@@ -79,21 +79,40 @@ export default function LandingPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8">
-          {/* STANDARD VCF COLUMN */}
-          <div className="space-y-6">
-            <div className="flex items-center space-x-3">
-              <ShieldAlert className="w-6 h-6 text-primary" />
-              <h2 className="text-2xl font-bold text-white tracking-widest">STANDARD PROTOCOL</h2>
-            </div>
+        {/*
+          Flat grid — 1 col on mobile, 2 cols on desktop.
+          CSS order controls the mobile stack:
+            1  Standard header
+            2  Standard capacity bar
+            3  Standard registration form
+            4  Bot header          (mt-12 gap above on mobile only)
+            5  Bot capacity bar
+            6  Bot registration form
+            7  Standard directory  ← moved below bot form on mobile
+            8  Bot directory
+          On desktop (lg): col-start pins each item to its column;
+          auto-placement stacks them in rows within that column.
+        */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-x-8 lg:gap-y-6">
 
+          {/* 1 — Standard column header */}
+          <div className="flex items-center space-x-3 order-1 lg:order-none lg:col-start-1">
+            <ShieldAlert className="w-6 h-6 text-primary" />
+            <h2 className="text-2xl font-bold text-white tracking-widest">STANDARD PROTOCOL</h2>
+          </div>
+
+          {/* 2 — Standard capacity bar */}
+          <div className="order-2 lg:order-none lg:col-start-1">
             <CapacityBar
               title="Global VCF Network"
               users={verifiedUsers?.standard || []}
               targetCount={500}
               accentColor="primary"
             />
+          </div>
 
+          {/* 3 — Standard registration form */}
+          <div className="order-3 lg:order-none lg:col-start-1">
             <RegistrationForm
               type="standard"
               title="Standard Registration"
@@ -101,27 +120,26 @@ export default function LandingPage() {
               crossRegisterLabel="Also initialize WhatsApp Bot VCF registration"
               accentColor="primary"
             />
-
-            <UserDirectory
-              users={verifiedUsers?.standard || []}
-              accentColor="primary"
-            />
           </div>
 
-          {/* WHATSAPP BOT VCF COLUMN */}
-          <div className="space-y-6 mt-12 lg:mt-0">
-            <div className="flex items-center space-x-3">
-              <Smartphone className="w-6 h-6 text-secondary" />
-              <h2 className="text-2xl font-bold text-white tracking-widest">BOT PROTOCOL</h2>
-            </div>
+          {/* 4 — Bot column header (extra top margin on mobile only) */}
+          <div className="flex items-center space-x-3 order-4 mt-6 lg:mt-0 lg:order-none lg:col-start-2">
+            <Smartphone className="w-6 h-6 text-secondary" />
+            <h2 className="text-2xl font-bold text-white tracking-widest">BOT PROTOCOL</h2>
+          </div>
 
+          {/* 5 — Bot capacity bar */}
+          <div className="order-5 lg:order-none lg:col-start-2">
             <CapacityBar
               title="Verified Bot Owners"
               users={verifiedUsers?.bot || []}
               targetCount={200}
               accentColor="secondary"
             />
+          </div>
 
+          {/* 6 — Bot registration form */}
+          <div className="order-6 lg:order-none lg:col-start-2">
             <RegistrationForm
               type="bot"
               title="Bot Owner Registration"
@@ -129,12 +147,24 @@ export default function LandingPage() {
               crossRegisterLabel="Also initialize Standard VCF registration"
               accentColor="secondary"
             />
+          </div>
 
+          {/* 7 — Standard verified directory — on mobile appears AFTER bot registration form */}
+          <div className="order-7 lg:order-none lg:col-start-1">
+            <UserDirectory
+              users={verifiedUsers?.standard || []}
+              accentColor="primary"
+            />
+          </div>
+
+          {/* 8 — Bot verified directory */}
+          <div className="order-8 lg:order-none lg:col-start-2">
             <UserDirectory
               users={verifiedUsers?.bot || []}
               accentColor="secondary"
             />
           </div>
+
         </div>
       </div>
 
