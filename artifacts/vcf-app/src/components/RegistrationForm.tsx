@@ -32,6 +32,7 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
       onSuccess: (data: RegistrationResponse) => {
         playSuccessSound();
         localStorage.setItem(`vcf_claim_${type}`, data.claimToken);
+        localStorage.setItem("vcf_pending_type", type);
         if (data.crossClaimToken) {
           const otherType = type === "standard" ? "bot" : "standard";
           localStorage.setItem(`vcf_claim_${otherType}`, data.crossClaimToken);
