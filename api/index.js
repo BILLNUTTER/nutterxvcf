@@ -16489,7 +16489,7 @@ var require_sign = __commonJS({
   "../../node_modules/.pnpm/math-intrinsics@1.1.0/node_modules/math-intrinsics/sign.js"(exports2, module2) {
     "use strict";
     var $isNaN = require_isNaN();
-    module2.exports = function sign(number4) {
+    module2.exports = function sign2(number4) {
       if ($isNaN(number4) || number4 === 0) {
         return number4;
       }
@@ -16853,7 +16853,7 @@ var require_get_intrinsic = __commonJS({
     var min = require_min();
     var pow = require_pow();
     var round = require_round();
-    var sign = require_sign();
+    var sign2 = require_sign();
     var $Function = Function;
     var getEvalledConstructor = function(expressionSyntax) {
       try {
@@ -16967,7 +16967,7 @@ var require_get_intrinsic = __commonJS({
       "%Math.min%": min,
       "%Math.pow%": pow,
       "%Math.round%": round,
-      "%Math.sign%": sign,
+      "%Math.sign%": sign2,
       "%Reflect.getPrototypeOf%": $ReflectGPO
     };
     if (getProto) {
@@ -22931,7 +22931,7 @@ var require_response = __commonJS({
     var path = require("node:path");
     var pathIsAbsolute = require("node:path").isAbsolute;
     var statuses = require_statuses();
-    var sign = require_cookie_signature().sign;
+    var sign2 = require_cookie_signature().sign;
     var normalizeType = require_utils3().normalizeType;
     var normalizeTypes = require_utils3().normalizeTypes;
     var setCharset = require_utils3().setCharset;
@@ -23222,7 +23222,7 @@ var require_response = __commonJS({
       }
       var val = typeof value === "object" ? "j:" + JSON.stringify(value) : String(value);
       if (signed) {
-        val = "s:" + sign(val, secret);
+        val = "s:" + sign2(val, secret);
       }
       if (opts.maxAge != null) {
         var maxAge = opts.maxAge - 0;
@@ -28563,9 +28563,9 @@ var require_postgres_date = __commonJS({
       if (type === "Z") {
         return 0;
       }
-      var sign = type === "-" ? -1 : 1;
+      var sign2 = type === "-" ? -1 : 1;
       var offset = parseInt(zone[2], 10) * 3600 + parseInt(zone[3] || 0, 10) * 60 + parseInt(zone[4] || 0, 10);
-      return offset * sign * 1e3;
+      return offset * sign2 * 1e3;
     }
     function bcYearToNegativeYear(year) {
       return -(year - 1);
@@ -28930,11 +28930,11 @@ var require_pg_int8 = __commonJS({
     function readInt8(buffer) {
       var high = buffer.readInt32BE(0);
       var low = buffer.readUInt32BE(4);
-      var sign = "";
+      var sign2 = "";
       if (high < 0) {
         high = ~high + (low === 0);
         low = ~low + 1 >>> 0;
-        sign = "-";
+        sign2 = "-";
       }
       var result = "";
       var carry;
@@ -28950,7 +28950,7 @@ var require_pg_int8 = __commonJS({
         low = t / BASE >>> 0;
         digits = "" + (t - BASE * low);
         if (low === 0 && high === 0) {
-          return sign + digits + result;
+          return sign2 + digits + result;
         }
         pad = "";
         l = 6 - digits.length;
@@ -28966,7 +28966,7 @@ var require_pg_int8 = __commonJS({
         low = t / BASE >>> 0;
         digits = "" + (t - BASE * low);
         if (low === 0 && high === 0) {
-          return sign + digits + result;
+          return sign2 + digits + result;
         }
         pad = "";
         l = 6 - digits.length;
@@ -28982,7 +28982,7 @@ var require_pg_int8 = __commonJS({
         low = t / BASE >>> 0;
         digits = "" + (t - BASE * low);
         if (low === 0 && high === 0) {
-          return sign + digits + result;
+          return sign2 + digits + result;
         }
         pad = "";
         l = 6 - digits.length;
@@ -28995,7 +28995,7 @@ var require_pg_int8 = __commonJS({
         carry = high % BASE;
         t = 4294967296 * carry + low;
         digits = "" + t % BASE;
-        return sign + digits + result;
+        return sign2 + digits + result;
       }
     }
     module2.exports = readInt8;
@@ -29044,7 +29044,7 @@ var require_binaryParsers = __commonJS({
     };
     var parseFloatFromBits = function(data, precisionBits, exponentBits) {
       var bias = Math.pow(2, exponentBits - 1) - 1;
-      var sign = parseBits(data, 1);
+      var sign2 = parseBits(data, 1);
       var exponent = parseBits(data, exponentBits, 1);
       if (exponent === 0) {
         return 0;
@@ -29065,11 +29065,11 @@ var require_binaryParsers = __commonJS({
       var mantissa = parseBits(data, precisionBits, exponentBits + 1, false, parsePrecisionBits);
       if (exponent == Math.pow(2, exponentBits + 1) - 1) {
         if (mantissa === 0) {
-          return sign === 0 ? Infinity : -Infinity;
+          return sign2 === 0 ? Infinity : -Infinity;
         }
         return NaN;
       }
-      return (sign === 0 ? 1 : -1) * Math.pow(2, exponent - bias) * mantissa;
+      return (sign2 === 0 ? 1 : -1) * Math.pow(2, exponent - bias) * mantissa;
     };
     var parseInt16 = function(value) {
       if (parseBits(value, 1) == 1) {
@@ -29090,8 +29090,8 @@ var require_binaryParsers = __commonJS({
       return parseFloatFromBits(value, 52, 11);
     };
     var parseNumeric = function(value) {
-      var sign = parseBits(value, 16, 32);
-      if (sign == 49152) {
+      var sign2 = parseBits(value, 16, 32);
+      if (sign2 == 49152) {
         return NaN;
       }
       var weight = Math.pow(1e4, parseBits(value, 16, 16));
@@ -29103,12 +29103,12 @@ var require_binaryParsers = __commonJS({
         weight /= 1e4;
       }
       var scale = Math.pow(10, parseBits(value, 16, 48));
-      return (sign === 0 ? 1 : -1) * Math.round(result * scale) / scale;
+      return (sign2 === 0 ? 1 : -1) * Math.round(result * scale) / scale;
     };
     var parseDate = function(isUTC, value) {
-      var sign = parseBits(value, 1);
+      var sign2 = parseBits(value, 1);
       var rawValue = parseBits(value, 63, 1);
-      var result = new Date((sign === 0 ? 1 : -1) * rawValue / 1e3 + 9466848e5);
+      var result = new Date((sign2 === 0 ? 1 : -1) * rawValue / 1e3 + 9466848e5);
       if (!isUTC) {
         result.setTime(result.getTime() + result.getTimezoneOffset() * 6e4);
       }
@@ -40322,8 +40322,8 @@ var PgTimestampString = class extends PgColumn {
     const shortened = value.toISOString().slice(0, -1).replace("T", " ");
     if (this.withTimezone) {
       const offset = value.getTimezoneOffset();
-      const sign = offset <= 0 ? "+" : "-";
-      return `${shortened}${sign}${Math.floor(Math.abs(offset) / 60).toString().padStart(2, "0")}`;
+      const sign2 = offset <= 0 ? "+" : "-";
+      return `${shortened}${sign2}${Math.floor(Math.abs(offset) / 60).toString().padStart(2, "0")}`;
     }
     return shortened;
   }
@@ -56217,27 +56217,41 @@ var import_express3 = __toESM(require_express2(), 1);
 var import_crypto2 = __toESM(require("crypto"), 1);
 var ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET ?? import_crypto2.default.randomBytes(32).toString("hex");
 var TOKEN_TTL_MS = 8 * 60 * 60 * 1e3;
-var validTokens = /* @__PURE__ */ new Map();
-function pruneExpiredTokens() {
-  const now = Date.now();
-  for (const [token, expiresAt] of validTokens) {
-    if (now >= expiresAt) {
-      validTokens.delete(token);
-    }
-  }
+function sign(username, expiresAt) {
+  return import_crypto2.default.createHmac("sha256", ADMIN_TOKEN_SECRET).update(`${username}:${expiresAt}`).digest("hex");
 }
 function generateToken(username) {
-  pruneExpiredTokens();
-  const token = import_crypto2.default.createHmac("sha256", ADMIN_TOKEN_SECRET).update(`${username}-${Date.now()}`).digest("hex");
-  validTokens.set(token, Date.now() + TOKEN_TTL_MS);
-  return token;
+  const expiresAt = Date.now() + TOKEN_TTL_MS;
+  const sig = sign(username, expiresAt);
+  return Buffer.from(`${expiresAt}.${sig}`).toString("base64url");
 }
 function requireAdmin(req, res, next) {
-  const token = req.headers["x-admin-token"];
-  const expiresAt = token ? validTokens.get(token) : void 0;
-  if (!expiresAt || Date.now() >= expiresAt) {
-    if (token && expiresAt) validTokens.delete(token);
-    res.status(401).json({ error: "unauthorized", message: "Invalid or expired admin token" });
+  const raw = req.headers["x-admin-token"];
+  if (!raw) {
+    res.status(401).json({ error: "unauthorized", message: "Admin token required" });
+    return;
+  }
+  let expiresAt;
+  let sig;
+  try {
+    const decoded = Buffer.from(raw, "base64url").toString("utf8");
+    const dotIdx = decoded.indexOf(".");
+    if (dotIdx === -1) throw new Error("bad format");
+    expiresAt = Number(decoded.slice(0, dotIdx));
+    sig = decoded.slice(dotIdx + 1);
+    if (!Number.isFinite(expiresAt) || !sig) throw new Error("bad fields");
+  } catch {
+    res.status(401).json({ error: "unauthorized", message: "Malformed admin token" });
+    return;
+  }
+  if (Date.now() >= expiresAt) {
+    res.status(401).json({ error: "unauthorized", message: "Admin token expired \u2014 please log in again" });
+    return;
+  }
+  const adminUsername = process.env.ADMIN_USERNAME ?? "";
+  const expected = sign(adminUsername, expiresAt);
+  if (!import_crypto2.default.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) {
+    res.status(401).json({ error: "unauthorized", message: "Invalid admin token" });
     return;
   }
   next();
