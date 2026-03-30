@@ -56080,17 +56080,20 @@ var paymentConfirmationsTable = pgTable("payment_confirmations", {
 
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
-var connectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+var connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
+var isSupabase = !process.env.DATABASE_URL && !!process.env.SUPABASE_DATABASE_URL;
 if (!connectionString) {
   console.warn(
-    "[db] WARNING: SUPABASE_DATABASE_URL or DATABASE_URL is not set. Database operations will fail. Set the variable and restart."
+    "[db] WARNING: DATABASE_URL or SUPABASE_DATABASE_URL is not set. Database operations will fail. Set the variable and restart."
   );
 }
 var pool = new Pool3({
-  // Fall back to an invalid string so Pool construction doesn't throw.
-  // Any actual query will surface a clear connection error.
   connectionString: connectionString ?? "postgresql://localhost:5432/notconfigured",
-  ssl: process.env.SUPABASE_DATABASE_URL ? { rejectUnauthorized: false } : false
+  ssl: isSupabase ? { rejectUnauthorized: false } : false,
+  // Small pool for Supabase (transaction pooler); generous for local Postgres.
+  max: isSupabase ? 3 : 10,
+  idleTimeoutMillis: isSupabase ? 1e4 : 3e4,
+  connectionTimeoutMillis: 5e3
 });
 var db = drizzle(pool, { schema: schema_exports });
 
