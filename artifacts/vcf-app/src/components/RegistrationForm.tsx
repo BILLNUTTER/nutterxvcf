@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { playSuccessSound } from "@/lib/utils";
-import { Loader2, TerminalSquare } from "lucide-react";
+import { Loader2, TerminalSquare, Smartphone } from "lucide-react";
 import { motion } from "framer-motion";
+import { CopyableNumber } from "@/components/CopyableNumber";
 
 interface Props {
   type: "standard" | "bot";
@@ -161,9 +162,36 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
             </Button>
 
             {type === "bot" && (
-              <p className="text-xs text-center text-muted-foreground font-mono mt-4">
-                [SYSTEM NOTE] Admin will manually verify WhatsApp bot ownership before approval.
-              </p>
+              <div className="rounded-xl border border-secondary/40 bg-secondary/8 p-4 space-y-3 mt-2">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-secondary shrink-0" />
+                  <span className="text-xs font-bold font-mono uppercase tracking-widest text-secondary">
+                    Bot Verification Steps
+                  </span>
+                </div>
+                <ol className="space-y-2 text-xs font-mono text-muted-foreground leading-relaxed list-none">
+                  <li className="flex gap-2">
+                    <span className="text-secondary font-bold shrink-0">1.</span>
+                    <span>
+                      Save admin's WhatsApp number below, then send him a message to prove you own a WhatsApp bot.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-secondary font-bold shrink-0">2.</span>
+                    <span>Fill in the form above and submit your registration.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-secondary font-bold shrink-0">3.</span>
+                    <span>Admin will review your bot proof and approve your account.</span>
+                  </li>
+                </ol>
+                <div className="flex flex-col items-center gap-1 pt-1 border-t border-secondary/20">
+                  <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-secondary/70">
+                    Admin WhatsApp — Save &amp; Text First
+                  </span>
+                  <CopyableNumber number="0713881613" size="lg" />
+                </div>
+              </div>
             )}
           </form>
         </CardContent>
