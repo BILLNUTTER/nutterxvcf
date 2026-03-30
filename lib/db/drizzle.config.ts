@@ -1,15 +1,15 @@
 import { defineConfig } from "drizzle-kit";
 import path from "path";
 
-// Prefer local DATABASE_URL (dev/Replit) so migrations don't run against
-// the production Supabase DB. On Vercel only SUPABASE_DATABASE_URL is set.
-const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
+// Prefer SUPABASE_DATABASE_URL so schema pushes target the same Supabase DB
+// used in production. Fall back to local DATABASE_URL when Supabase is not set.
+const connectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error("DATABASE_URL or SUPABASE_DATABASE_URL must be set");
+  throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL must be set");
 }
 
-const isSupabase = !process.env.DATABASE_URL && !!process.env.SUPABASE_DATABASE_URL;
+const isSupabase = !!process.env.SUPABASE_DATABASE_URL;
 
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),

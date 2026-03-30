@@ -4,11 +4,11 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-// Prefer local DATABASE_URL (Replit dev) so the dev server does not compete
-// with Vercel serverless functions for Supabase connections.
-// On Vercel only SUPABASE_DATABASE_URL is set, so it is used there.
-const rawConnectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
-const isSupabase = !process.env.DATABASE_URL && !!process.env.SUPABASE_DATABASE_URL;
+// Prefer SUPABASE_DATABASE_URL so both dev (Replit) and production (Vercel)
+// use the same Supabase database. Fall back to local DATABASE_URL if Supabase
+// is not configured.
+const rawConnectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+const isSupabase = !!process.env.SUPABASE_DATABASE_URL;
 
 if (!rawConnectionString) {
   console.warn(

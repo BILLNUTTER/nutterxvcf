@@ -56088,8 +56088,8 @@ var botVerifiedPhonesTable = pgTable("bot_verified_phones", {
 
 // ../../lib/db/src/index.ts
 var { Pool: Pool3 } = esm_default;
-var rawConnectionString = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
-var isSupabase = !process.env.DATABASE_URL && !!process.env.SUPABASE_DATABASE_URL;
+var rawConnectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+var isSupabase = !!process.env.SUPABASE_DATABASE_URL;
 if (!rawConnectionString) {
   console.warn(
     "[db] WARNING: DATABASE_URL or SUPABASE_DATABASE_URL is not set. Database operations will fail."
