@@ -7,7 +7,7 @@ import { Loader2, Smartphone, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CopyableNumber } from "@/components/CopyableNumber";
 
-const ADMIN_WHATSAPP = "+254713881613";
+const ADMIN_WHATSAPP = "+254758891491";
 
 interface SubmitPayload {
   name: string;

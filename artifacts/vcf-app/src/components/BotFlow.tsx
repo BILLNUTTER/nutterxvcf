@@ -9,8 +9,8 @@ import { Loader2, Smartphone, CheckCircle2, XCircle, MessageCircle } from "lucid
 import { motion, AnimatePresence } from "framer-motion";
 import { playSuccessSound } from "@/lib/utils";
 
-const ADMIN_WHATSAPP = "0713881613";
-const ADMIN_WA_LINK = "https://wa.me/254713881613";
+const ADMIN_WHATSAPP = "0758891491";
+const ADMIN_WA_LINK = "https://wa.me/254758891491";
 const GROUP_LINK = "https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t";
 
 type CheckStatus = "idle" | "checking" | "not_verified" | "verified" | "registered";

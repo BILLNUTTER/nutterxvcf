@@ -272,7 +272,7 @@ export default function LandingPage() {
             © {new Date().getFullYear()} NUTTERX SYNDICATE. ALL RIGHTS RESERVED.
           </p>
           <a
-            href="https://wa.me/254713881613"
+            href="https://wa.me/254758891491"
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors drop-shadow-[0_0_5px_hsl(var(--primary)/0.5)]"

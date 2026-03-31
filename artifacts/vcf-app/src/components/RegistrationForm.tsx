@@ -212,7 +212,7 @@ export function RegistrationForm({ type, title, description, crossRegisterLabel,
                   <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-secondary/70">
                     Admin WhatsApp — Save &amp; Text First
                   </span>
-                  <CopyableNumber number="0713881613" size="lg" />
+                  <CopyableNumber number="0758891491" size="lg" />
                 </div>
               </div>
             )}
