@@ -5,19 +5,41 @@ function isValidTokenFormat(t: string): boolean {
   return t.length > 30 && !isOldHex;
 }
 
-export function useAuth() {
-  const [token, setToken] = useState<string | null>(() => {
-    try {
-      const stored = localStorage.getItem("adminToken");
-      if (stored && isValidTokenFormat(stored)) return stored;
-      if (stored) localStorage.removeItem("adminToken");
-    } catch {
-      // ignore
-    }
-    return null;
-  });
+function isTokenExpired(t: string): boolean {
+  try {
+    const base64 = t.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const decoded = atob(padded);
+    const dotIdx = decoded.indexOf(".");
+    if (dotIdx === -1) return true;
+    const expiresAt = Number(decoded.slice(0, dotIdx));
+    return !Number.isFinite(expiresAt) || Date.now() >= expiresAt;
+  } catch {
+    return true;
+  }
+}
 
-  // "expired" = kicked by a 401 mid-session (not a fresh visit)
+function readStoredToken(): string | null {
+  try {
+    const stored = localStorage.getItem("adminToken");
+    if (!stored) return null;
+    if (!isValidTokenFormat(stored)) {
+      localStorage.removeItem("adminToken");
+      return null;
+    }
+    if (isTokenExpired(stored)) {
+      localStorage.removeItem("adminToken");
+      return null;
+    }
+    return stored;
+  } catch {
+    return null;
+  }
+}
+
+export function useAuth() {
+  const [token, setToken] = useState<string | null>(() => readStoredToken());
+
   const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
@@ -38,7 +60,6 @@ export function useAuth() {
     setSessionExpired(false);
   };
 
-  // Call this whenever an admin API returns 401 — marks session as expired
   const handleAuthError = () => {
     localStorage.removeItem("adminToken");
     setToken(null);

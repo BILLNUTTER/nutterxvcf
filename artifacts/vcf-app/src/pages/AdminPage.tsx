@@ -327,9 +327,17 @@ interface BotVerifiedEntry {
   registrationId: number | null;
 }
 
+class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function fetchBotVerified(token: string): Promise<{ entries: BotVerifiedEntry[]; total: number }> {
   const res = await fetch("/api/admin/bot-verified", { headers: { "x-admin-token": token } });
-  if (!res.ok) throw new Error("Failed to fetch");
+  if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
   return res.json() as Promise<{ entries: BotVerifiedEntry[]; total: number }>;
 }
 
@@ -358,13 +366,16 @@ function BotVerifierPanel({ token, onAuthError }: { token: string; onAuthError: 
   const [newPhone, setNewPhone] = useState("");
   const [msg, setMsg] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: botError } = useQuery({
     queryKey: ["/api/admin/bot-verified"],
     queryFn: () => fetchBotVerified(token),
     refetchInterval: 8000,
     throwOnError: false,
-    meta: { onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); } },
   });
+
+  useEffect(() => {
+    if (botError && (botError as { status?: number }).status === 401) onAuthError();
+  }, [botError]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/bot-verified"] });
 
@@ -492,7 +503,7 @@ async function fetchPaymentConfirmations(token: string): Promise<{ confirmations
   const res = await fetch("/api/admin/payment-confirmations", {
     headers: { "x-admin-token": token },
   });
-  if (!res.ok) throw new Error("Failed to fetch");
+  if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
   return res.json() as Promise<{ confirmations: PaymentConfirmation[]; total: number }>;
 }
 
@@ -516,13 +527,16 @@ function PaymentsTable({ token, onAuthError }: { token: string; onAuthError: () 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: paymentsError } = useQuery({
     queryKey: ["/api/admin/payment-confirmations"],
     queryFn: () => fetchPaymentConfirmations(token),
     refetchInterval: 8000,
     throwOnError: false,
-    meta: { onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); } },
   });
+
+  useEffect(() => {
+    if (paymentsError && (paymentsError as { status?: number }).status === 401) onAuthError();
+  }, [paymentsError]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/payment-confirmations"] });
 
@@ -660,7 +674,7 @@ function RegistrationTable({ type, token, onAuthError }: { type: GetAdminRegistr
   const queryClient = useQueryClient();
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  const { data, isLoading } = useGetAdminRegistrations(
+  const { data, isLoading, error: regError } = useGetAdminRegistrations(
     { type },
     {
       request: { headers: { "x-admin-token": token } },
@@ -668,10 +682,13 @@ function RegistrationTable({ type, token, onAuthError }: { type: GetAdminRegistr
         queryKey: getGetAdminRegistrationsQueryKey({ type }),
         refetchInterval: 5000,
         throwOnError: false,
-        meta: { onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); } },
       },
     }
   );
+
+  useEffect(() => {
+    if (regError && (regError as { status?: number }).status === 401) onAuthError();
+  }, [regError]);
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/admin/registrations"] });
