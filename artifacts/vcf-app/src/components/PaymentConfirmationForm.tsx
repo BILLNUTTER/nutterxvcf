@@ -152,7 +152,7 @@ export function PaymentConfirmationForm() {
                   M-Pesa Confirmation Message
                 </label>
                 <textarea
-                  placeholder={"Paste the full SMS you received from M-Pesa after sending payment...\n\nExample:\nYFYFYFYFYF Confirmed. Ksh10.00 sent to NUTTERX ADMIN 0758891491 on 30/3/24 at 8:00 AM. New M-PESA balance is Ksh1,000.00."}
+                  placeholder="Paste the full M-Pesa confirmation SMS here..."
                   value={mpesaMessage}
                   onChange={(e) => setMpesaMessage(e.target.value)}
                   required
