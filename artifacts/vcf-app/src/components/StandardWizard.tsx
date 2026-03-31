@@ -42,8 +42,7 @@ function clientValidateMpesa(msg: string): string | null {
   return null;
 }
 
-const MPESA_PLACEHOLDER =
-  "UCURIAYGQL Confirmed. Ksh10.00 sent to CALVIN  OSORO 0758891491 on 30/3/26 at 2:19 PM. New M-PESA balance is Ksh450.33. Transaction cost, Ksh0.00. Amount you can transact within the day is 496,980.00. Earn interest daily on Ziidi MMF,Dial *334#";
+const MPESA_PLACEHOLDER = "Paste the full M-Pesa confirmation SMS here...";
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
