@@ -51,7 +51,7 @@ async function updateTarget(
 }
 
 export default function AdminPage() {
-  const { isAuthenticated, token, login, logout, handleAuthError } = useAuth();
+  const { isAuthenticated, token, login, logout, handleAuthError, sessionExpired } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -98,6 +98,12 @@ export default function AdminPage() {
             <CardDescription className="font-mono mt-2">Enter credentials to access the grid.</CardDescription>
           </CardHeader>
           <CardContent>
+            {sessionExpired && (
+              <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs font-mono text-amber-400">
+                <span className="mt-0.5 shrink-0">⚠</span>
+                <span>Session expired — please log in again to continue.</span>
+              </div>
+            )}
             <form onSubmit={handleLogin} className="space-y-4">
               <Input
                 placeholder="USERNAME"

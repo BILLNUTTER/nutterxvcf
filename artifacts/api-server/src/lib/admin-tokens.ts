@@ -10,7 +10,7 @@ const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET
     ? crypto.createHash("sha256").update(`admin-token-${process.env.ADMIN_PASSWORD}`).digest("hex")
     : crypto.randomBytes(32).toString("hex"));
 
-const TOKEN_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ─── Stateless HMAC token ────────────────────────────────────────────────────
 // Format: "<expiresAt>.<signature>"

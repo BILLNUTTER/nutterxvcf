@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 
-// New token format is base64url (contains letters, digits, -, _).
-// Old format was a 64-char lowercase hex string.
-// Reject the old format so the user is prompted to re-login instead of
-// seeing a confusing "Malformed admin token" error.
 function isValidTokenFormat(t: string): boolean {
-  // base64url tokens are typically ~80+ chars and contain at least one - or _
-  // Old hex tokens are exactly 64 chars of [0-9a-f]
   const isOldHex = /^[0-9a-f]{64}$/.test(t);
   return t.length > 30 && !isOldHex;
 }
@@ -23,6 +17,9 @@ export function useAuth() {
     return null;
   });
 
+  // "expired" = kicked by a 401 mid-session (not a fresh visit)
+  const [sessionExpired, setSessionExpired] = useState(false);
+
   useEffect(() => {
     if (token === null) {
       localStorage.removeItem("adminToken");
@@ -32,17 +29,21 @@ export function useAuth() {
   const login = (newToken: string) => {
     localStorage.setItem("adminToken", newToken);
     setToken(newToken);
+    setSessionExpired(false);
   };
 
   const logout = () => {
     localStorage.removeItem("adminToken");
     setToken(null);
+    setSessionExpired(false);
   };
 
-  // Call this whenever an admin API returns 401 — clears stale/expired token
+  // Call this whenever an admin API returns 401 — marks session as expired
   const handleAuthError = () => {
-    logout();
+    localStorage.removeItem("adminToken");
+    setToken(null);
+    setSessionExpired(true);
   };
 
-  return { token, login, logout, handleAuthError, isAuthenticated: !!token };
+  return { token, login, logout, handleAuthError, isAuthenticated: !!token, sessionExpired };
 }

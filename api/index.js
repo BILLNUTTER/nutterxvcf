@@ -56346,7 +56346,7 @@ var import_express3 = __toESM(require_express2(), 1);
 // src/lib/admin-tokens.ts
 var import_crypto2 = __toESM(require("crypto"), 1);
 var ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET ?? (process.env.ADMIN_PASSWORD ? import_crypto2.default.createHash("sha256").update(`admin-token-${process.env.ADMIN_PASSWORD}`).digest("hex") : import_crypto2.default.randomBytes(32).toString("hex"));
-var TOKEN_TTL_MS = 8 * 60 * 60 * 1e3;
+var TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1e3;
 function sign(username, expiresAt) {
   return import_crypto2.default.createHmac("sha256", ADMIN_TOKEN_SECRET).update(`${username}:${expiresAt}`).digest("hex");
 }
