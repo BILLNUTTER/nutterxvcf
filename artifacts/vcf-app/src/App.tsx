@@ -7,6 +7,7 @@ import PendingPage from "@/pages/PendingPage";
 import AdminPage from "@/pages/AdminPage";
 import VcfGuidePage from "@/pages/VcfGuidePage";
 import NotFound from "@/pages/not-found";
+import { useSoundEffects } from "@/hooks/use-sound-effects";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,13 +36,20 @@ function RouteHandler() {
   );
 }
 
+function AppInner() {
+  useSoundEffects();
+  return (
+    <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+      <RouteHandler />
+    </WouterRouter>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <RouteHandler />
-        </WouterRouter>
+        <AppInner />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
