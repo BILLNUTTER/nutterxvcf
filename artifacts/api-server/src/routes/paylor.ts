@@ -194,18 +194,25 @@ router.post("/paylor/initiate", async (req, res) => {
         amount: 10,
         channelId: config.channelId,
         reference,
-        callbackUrl,
+        callback_url: callbackUrl,  // Paylor expects snake_case
         description: `VCF Registration - ${name}`,
       }),
     });
 
-    const data = (await paylorRes.json()) as { transactionId?: string; message?: string };
+    const paylorText = await paylorRes.text();
+    let data: Record<string, unknown> = {};
+    try { data = JSON.parse(paylorText) as Record<string, unknown>; } catch { /* non-JSON */ }
+
     if (!paylorRes.ok) {
       req.log.error({ data }, "Paylor STK push rejected");
-      res.status(502).json({ error: "paylor_error", message: data.message ?? "Payment gateway returned an error. Please try again." });
+      const msg = (data.message ?? (data.error as Record<string, unknown>)?.message ?? "Payment gateway returned an error. Please try again.") as string;
+      res.status(502).json({ error: "paylor_error", message: msg });
       return;
     }
-    paylorTransactionId = data.transactionId;
+
+    // Paylor wraps the ID inside a nested "data" object in some versions
+    const inner = (data.data && typeof data.data === "object" ? data.data : data) as Record<string, unknown>;
+    paylorTransactionId = (inner.paymentId ?? inner.payment_id ?? inner.transactionId ?? inner.transaction_id ?? inner.id ?? inner.reference ?? null) as string | undefined;
   } catch (err) {
     req.log.error({ err }, "Paylor API unreachable");
     res.status(502).json({ error: "paylor_unreachable", message: "Could not reach the payment gateway. Check your internet and try again." });
@@ -323,32 +330,42 @@ router.post("/paylor/verify", async (req, res) => {
   let liveStatus: string | undefined;
   let mpesaReceipt: string | undefined;
 
-  try {
-    const paylorRes = await fetch(
-      `${PAYLOR_BASE}/merchants/payments/${encodeURIComponent(tx.paylorTransactionId)}`,
-      {
-        headers: { Authorization: `Bearer ${config.apiKey}` },
-      },
-    );
+  const PAID_STATUSES = new Set(["success", "completed", "paid", "approved", "successful", "complete"]);
+  const FAILED_STATUSES = new Set(["failed", "cancelled", "expired", "reversed"]);
 
-    if (paylorRes.ok) {
-      const data = (await paylorRes.json()) as {
-        status?: string;
-        metadata?: { mpesaReceipt?: string };
-        mpesaReceipt?: string;
-      };
-      liveStatus = data.status?.toLowerCase();
-      mpesaReceipt = data.metadata?.mpesaReceipt ?? data.mpesaReceipt;
-    } else {
-      req.log.warn({ ref: reference }, "Paylor live status check returned non-OK");
-    }
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 25_000);
+  try {
+    // Correct Paylor endpoint: GET /merchants/payments/transactions/{transactionId}
+    const url = `${PAYLOR_BASE}/merchants/payments/transactions/${encodeURIComponent(tx.paylorTransactionId)}`;
+    const paylorRes = await fetch(url, {
+      headers: { Authorization: `Bearer ${config.apiKey}`, Accept: "application/json" },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timeout);
+
+    const text = await paylorRes.text();
+    req.log.info({ url, httpStatus: paylorRes.status, body: text.slice(0, 500) }, "Paylor status check");
+
+    let raw: Record<string, unknown> = {};
+    try { raw = JSON.parse(text) as Record<string, unknown>; } catch { /* non-JSON */ }
+
+    // Paylor may wrap the transaction inside a "data" key
+    const txData = (raw.data && typeof raw.data === "object" ? raw.data : raw) as Record<string, unknown>;
+    const flat = { ...raw, ...txData } as Record<string, unknown>;
+
+    liveStatus = (flat.status ?? flat.payment_status ?? flat.transaction_status ?? flat.state ?? "") as string;
+    liveStatus = liveStatus.toLowerCase();
+
+    const receiptObj = (flat.metadata && typeof flat.metadata === "object" ? flat.metadata : flat) as Record<string, unknown>;
+    mpesaReceipt = (receiptObj.mpesaReceipt ?? receiptObj.mpesa_receipt ?? receiptObj.providerRef ?? null) as string | undefined;
   } catch (err) {
+    clearTimeout(timeout);
     req.log.error({ err }, "Paylor live status check failed");
   }
 
-  // Map Paylor status to our status
-  const isConfirmed = liveStatus === "completed" || liveStatus === "success" || liveStatus === "paid";
-  const isFailed = liveStatus === "failed" || liveStatus === "cancelled" || liveStatus === "expired";
+  const isConfirmed = PAID_STATUSES.has(liveStatus ?? "");
+  const isFailed = FAILED_STATUSES.has(liveStatus ?? "");
 
   if (isConfirmed) {
     // Update local DB
@@ -379,7 +396,14 @@ router.post("/paylor/verify", async (req, res) => {
 
 // ── POST /api/paylor/callback ─────────────────────────────────────────────────
 router.post("/paylor/callback", async (req, res) => {
-  const signature = req.headers["x-webhook-signature"] as string | undefined;
+  // Paylor sends the signature in different headers depending on version
+  const signature = (
+    req.headers["x-payment-signature"] ??
+    req.headers["x-paylor-signature"] ??
+    req.headers["x-webhook-signature"] ??
+    req.headers["x-signature"] ??
+    ""
+  ) as string;
 
   let webhookSecret = "";
   try {
@@ -390,54 +414,67 @@ router.post("/paylor/callback", async (req, res) => {
   }
 
   if (webhookSecret && signature) {
-    const expected = crypto
-      .createHmac("sha256", webhookSecret)
-      .update(JSON.stringify(req.body))
-      .digest("hex");
-    if (signature !== expected) {
-      req.log.warn("Paylor webhook: invalid signature");
+    const payload = JSON.stringify(req.body);
+    const expected = crypto.createHmac("sha256", webhookSecret).update(payload).digest("hex");
+    // Paylor may prefix with "sha256="
+    const receivedHex = signature.startsWith("sha256=") ? signature.slice(7) : signature;
+    try {
+      const match = crypto.timingSafeEqual(Buffer.from(receivedHex, "hex"), Buffer.from(expected, "hex"));
+      if (!match) {
+        req.log.warn("Paylor webhook: invalid signature");
+        res.status(401).json({ error: "invalid_signature" });
+        return;
+      }
+    } catch {
+      req.log.warn("Paylor webhook: signature comparison failed");
       res.status(401).json({ error: "invalid_signature" });
       return;
     }
   }
 
-  const { event, transaction } = req.body as {
-    event?: string;
-    transaction?: {
-      id?: string;
-      reference?: string;
-      amount?: number;
-      status?: string;
-      metadata?: { mpesaReceipt?: string };
-    };
-  };
+  const body = req.body as Record<string, unknown>;
+  // Unwrap nested containers Paylor uses in different versions
+  const txNested = (body.transaction && typeof body.transaction === "object" ? body.transaction : {}) as Record<string, unknown>;
+  const dataNested = (body.data && typeof body.data === "object" ? body.data : {}) as Record<string, unknown>;
+  const flat = { ...body, ...dataNested, ...txNested } as Record<string, unknown>;
 
-  req.log.info({ event, ref: transaction?.reference }, "Paylor webhook");
+  const event = (body.event ?? "") as string;
+  const internalRef = (flat.reference ?? flat.payment_reference ?? flat.merchantReference ?? "") as string;
+  const flatStatus = ((flat.status ?? flat.payment_status ?? flat.transaction_status ?? "") as string).toLowerCase();
 
-  if (transaction?.reference) {
+  req.log.info({ event, internalRef, flatStatus }, "Paylor webhook received");
+
+  const PAID_STATUSES = new Set(["success", "completed", "paid", "approved", "successful", "complete"]);
+  const isSuccess = PAID_STATUSES.has(flatStatus) || event === "payment.success";
+  const isFailed = event === "payment.failed" || event === "payment.cancelled" ||
+    flatStatus === "failed" || flatStatus === "cancelled";
+
+  if (internalRef) {
     try {
-      if (event === "payment.success") {
-        // Update transaction to completed
+      if (isSuccess) {
+        const receiptObj = (flat.metadata && typeof flat.metadata === "object" ? flat.metadata : flat) as Record<string, unknown>;
+        const receipt = (receiptObj.mpesaReceipt ?? receiptObj.mpesa_receipt ?? receiptObj.providerRef ?? null) as string | null;
+
         await db
           .update(paylorTransactionsTable)
-          .set({ status: "completed", mpesaReceipt: transaction.metadata?.mpesaReceipt ?? null, updatedAt: new Date() })
-          .where(eq(paylorTransactionsTable.reference, transaction.reference));
+          .set({ status: "completed", mpesaReceipt: receipt, updatedAt: new Date() })
+          .where(eq(paylorTransactionsTable.reference, internalRef));
 
         // Auto-approve the registration — no admin action required
-        const [tx] = await db
+        const [localTx] = await db
           .select({ registrationId: paylorTransactionsTable.registrationId })
           .from(paylorTransactionsTable)
-          .where(eq(paylorTransactionsTable.reference, transaction.reference))
+          .where(eq(paylorTransactionsTable.reference, internalRef))
           .limit(1);
-        if (tx) {
-          await autoApproveRegistration(tx.registrationId);
-          req.log.info({ registrationId: tx.registrationId }, "Auto-approved registration after payment");
+        if (localTx) {
+          await autoApproveRegistration(localTx.registrationId);
+          req.log.info({ registrationId: localTx.registrationId }, "Auto-approved registration after payment webhook");
         }
-      } else if (event === "payment.failed" || event === "payment.cancelled") {
+      } else if (isFailed) {
         await db
           .update(paylorTransactionsTable)
           .set({ status: "failed", failureReason: "Payment not completed", updatedAt: new Date() })
-          .where(eq(paylorTransactionsTable.reference, transaction.reference));
+          .where(eq(paylorTransactionsTable.reference, internalRef));
       }
     } catch (err) {
       req.log.error({ err }, "Failed to update Paylor tx from webhook");
