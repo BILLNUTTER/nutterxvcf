@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck, UserCheck, Plus, X, Zap, ToggleLeft, ToggleRight, Key, TrendingUp, CreditCard } from "lucide-react";
+import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck, UserCheck, Plus, X, Zap, ToggleLeft, ToggleRight, Key, TrendingUp, CreditCard, Wrench, AlertTriangle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 
@@ -169,12 +169,16 @@ export default function AdminPage() {
         <PaylorSettingsPanel token={token!} onAuthError={handleAuthError} />
 
         <Tabs defaultValue="standard" className="w-full">
-          <TabsList className="grid w-full sm:w-[576px] grid-cols-3 mb-8">
+          <TabsList className="grid w-full sm:w-[768px] grid-cols-4 mb-8">
             <TabsTrigger value="standard">Standard VCF</TabsTrigger>
             <TabsTrigger value="bot">Bot VCF</TabsTrigger>
             <TabsTrigger value="payments">
               <Smartphone className="w-3.5 h-3.5 mr-1.5" />
               Payments
+            </TabsTrigger>
+            <TabsTrigger value="maintenance">
+              <Wrench className="w-3.5 h-3.5 mr-1.5" />
+              Maintenance
             </TabsTrigger>
           </TabsList>
 
@@ -188,9 +192,224 @@ export default function AdminPage() {
           <TabsContent value="payments" className="mt-0">
             <PaymentsTable token={token!} onAuthError={handleAuthError} />
           </TabsContent>
+          <TabsContent value="maintenance" className="mt-0">
+            <MaintenancePanel token={token!} onAuthError={handleAuthError} />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
+  );
+}
+
+interface MaintenanceStatus {
+  enabled: boolean;
+  title: string;
+  reasons: string[];
+  eta: string;
+}
+
+async function fetchMaintenance(): Promise<MaintenanceStatus> {
+  const res = await fetch("/api/maintenance");
+  if (!res.ok) return { enabled: false, title: "", reasons: [], eta: "" };
+  return res.json() as Promise<MaintenanceStatus>;
+}
+
+async function saveMaintenance(token: string, payload: Partial<MaintenanceStatus>): Promise<void> {
+  const res = await fetch("/api/admin/maintenance", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "x-admin-token": token },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json() as { message?: string };
+    throw new Error(err.message ?? "Failed to save maintenance settings");
+  }
+}
+
+function MaintenancePanel({ token, onAuthError }: { token: string; onAuthError: () => void }) {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery<MaintenanceStatus>({
+    queryKey: ["/api/maintenance"],
+    queryFn: fetchMaintenance,
+    refetchInterval: 30_000,
+  });
+
+  const [enabled, setEnabled] = useState<boolean>(false);
+  const [title, setTitle] = useState("");
+  const [reasons, setReasons] = useState<string[]>([]);
+  const [eta, setEta] = useState("");
+  const [newReason, setNewReason] = useState("");
+  const [saveMsg, setSaveMsg] = useState("");
+  const [synced, setSynced] = useState(false);
+
+  useEffect(() => {
+    if (data && !synced) {
+      setEnabled(data.enabled);
+      setTitle(data.title === "Service Under Maintenance" ? "" : data.title);
+      setReasons(data.reasons);
+      setEta(data.eta);
+      setSynced(true);
+    }
+  }, [data, synced]);
+
+  const mutation = useMutation({
+    mutationFn: (payload: Partial<MaintenanceStatus>) => saveMaintenance(token, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance"] });
+      setSaveMsg("SAVED");
+      setTimeout(() => setSaveMsg(""), 2500);
+    },
+    onError: (err: Error) => {
+      if ((err as { status?: number }).status === 401) { onAuthError(); return; }
+      setSaveMsg(`ERROR: ${err.message}`);
+      setTimeout(() => setSaveMsg(""), 4000);
+    },
+  });
+
+  const handleSave = () => {
+    mutation.mutate({
+      enabled,
+      title: title.trim() || "Service Under Maintenance",
+      reasons,
+      eta: eta.trim(),
+    });
+  };
+
+  const addReason = () => {
+    const r = newReason.trim();
+    if (!r || reasons.includes(r)) return;
+    setReasons([...reasons, r]);
+    setNewReason("");
+  };
+
+  const removeReason = (i: number) => setReasons(reasons.filter((_, idx) => idx !== i));
+
+  const toggleEnabled = () => {
+    const next = !enabled;
+    setEnabled(next);
+    mutation.mutate({ enabled: next });
+  };
+
+  return (
+    <Card className="border-t-4 border-t-amber-500/60 bg-black/40">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wrench className="w-5 h-5 text-amber-400" />
+            <CardTitle className="text-lg tracking-widest text-amber-300">MAINTENANCE MODE</CardTitle>
+          </div>
+          <div className="flex items-center gap-3">
+            {data?.enabled && (
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/50 font-mono text-[10px]">
+                ACTIVE
+              </Badge>
+            )}
+            <button
+              onClick={toggleEnabled}
+              disabled={mutation.isPending}
+              className={`flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                enabled
+                  ? "border-amber-500/60 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25"
+                  : "border-border/40 bg-muted/10 text-muted-foreground hover:border-primary/40"
+              }`}
+            >
+              {enabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+              {enabled ? "ON" : "OFF"}
+            </button>
+          </div>
+        </div>
+        <CardDescription className="font-mono text-xs">
+          When enabled, all non-admin users see a maintenance page instead of the registration form.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {isLoading ? (
+          <p className="font-mono text-muted-foreground text-sm">LOADING...</p>
+        ) : (
+          <>
+            {/* Title */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold font-mono text-amber-400 tracking-widest flex items-center gap-1.5">
+                <AlertTriangle className="w-3 h-3" /> PAGE TITLE
+              </label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Service Under Maintenance"
+                className="font-mono border-amber-500/30 focus:border-amber-400"
+              />
+            </div>
+
+            {/* Reasons */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold font-mono text-amber-400 tracking-widest flex items-center gap-1.5">
+                <AlertTriangle className="w-3 h-3" /> REASONS (shown to users)
+              </label>
+              <div className="space-y-1.5">
+                {reasons.map((r, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-1.5">
+                    <span className="flex-1 text-xs font-mono text-amber-200/80">{r}</span>
+                    <button onClick={() => removeReason(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {reasons.length === 0 && (
+                  <p className="text-[11px] font-mono text-muted-foreground/50 italic">No reasons added.</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={newReason}
+                  onChange={(e) => setNewReason(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addReason(); } }}
+                  placeholder="Add a reason..."
+                  className="font-mono text-sm border-amber-500/30 focus:border-amber-400"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addReason}
+                  className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* ETA */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold font-mono text-amber-400 tracking-widest flex items-center gap-1.5">
+                <Clock className="w-3 h-3" /> ESTIMATED RETURN (optional)
+              </label>
+              <Input
+                value={eta}
+                onChange={(e) => setEta(e.target.value)}
+                placeholder="e.g. Today at 6:00 PM"
+                className="font-mono border-amber-500/30 focus:border-amber-400"
+              />
+            </div>
+
+            {/* Save button */}
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                onClick={handleSave}
+                disabled={mutation.isPending}
+                className="bg-amber-600 hover:bg-amber-500 text-black font-bold font-mono"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {mutation.isPending ? "SAVING..." : "SAVE SETTINGS"}
+              </Button>
+              {saveMsg && (
+                <span className={`text-xs font-mono font-bold ${saveMsg.startsWith("ERROR") ? "text-destructive" : "text-green-400"}`}>
+                  {saveMsg}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -152,4 +152,39 @@ router.get("/users/verified", async (req, res) => {
   }
 });
 
+// ── Check if a phone is already registered ────────────────────────────────
+router.get("/check-phone", async (req, res) => {
+  const phone = req.query["phone"] as string | undefined;
+  const type = req.query["type"] as string | undefined;
+
+  if (!phone || (type !== "standard" && type !== "bot")) {
+    res.status(400).json({ error: "validation_error", message: "phone and type (standard|bot) are required" });
+    return;
+  }
+
+  try {
+    const existing = await db
+      .select({ status: registrationsTable.status })
+      .from(registrationsTable)
+      .where(
+        and(
+          eq(registrationsTable.phone, phone),
+          eq(registrationsTable.registrationType, type),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length === 0) {
+      res.json({ status: "available" });
+      return;
+    }
+
+    const isSuspended = existing[0].status === "suspended";
+    res.json({ status: isSuspended ? "suspended" : "already_registered" });
+  } catch (err) {
+    req.log.error({ err }, "Failed to check phone availability");
+    res.status(500).json({ error: "server_error", message: "Failed to check phone" });
+  }
+});
+
 export default router;

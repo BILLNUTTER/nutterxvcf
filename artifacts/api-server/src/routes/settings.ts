@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { registrationsTable, settingsTable } from "@workspace/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin-tokens";
 import { z } from "zod";
 
@@ -113,6 +113,80 @@ router.patch("/admin/settings", requireAdmin, async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update setting");
     res.status(500).json({ error: "server_error", message: "Failed to update setting" });
+  }
+});
+
+// ── Maintenance mode ─────────────────────────────────────────────────────────
+
+const MAINTENANCE_KEYS = [
+  "maintenance_enabled",
+  "maintenance_title",
+  "maintenance_reasons",
+  "maintenance_eta",
+] as const;
+
+export async function getMaintenanceStatus() {
+  const rows = await db
+    .select()
+    .from(settingsTable)
+    .where(inArray(settingsTable.key, [...MAINTENANCE_KEYS]));
+  const cfg: Record<string, string> = {};
+  for (const r of rows) cfg[r.key] = r.value;
+
+  let reasons: string[] = [];
+  try {
+    if (cfg.maintenance_reasons) reasons = JSON.parse(cfg.maintenance_reasons) as string[];
+  } catch { /* ignore */ }
+
+  return {
+    enabled: cfg.maintenance_enabled === "true",
+    title: cfg.maintenance_title || "Service Under Maintenance",
+    reasons,
+    eta: cfg.maintenance_eta || "",
+  };
+}
+
+router.get("/maintenance", async (_req, res) => {
+  try {
+    const status = await getMaintenanceStatus();
+    res.json(status);
+  } catch {
+    res.json({ enabled: false, title: "Service Under Maintenance", reasons: [], eta: "" });
+  }
+});
+
+const MaintenanceBody = z.object({
+  enabled: z.boolean().optional(),
+  title: z.string().max(200).optional(),
+  reasons: z.array(z.string().max(300)).max(20).optional(),
+  eta: z.string().max(200).optional(),
+});
+
+router.patch("/admin/maintenance", requireAdmin, async (req, res) => {
+  const parsed = MaintenanceBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "validation_error", message: parsed.error.message });
+    return;
+  }
+
+  const { enabled, title, reasons, eta } = parsed.data;
+  try {
+    const ops: Promise<void>[] = [];
+    if (enabled !== undefined) ops.push(upsertSetting("maintenance_enabled", String(enabled)));
+    if (title !== undefined) ops.push(upsertSetting("maintenance_title", title));
+    if (reasons !== undefined) ops.push(upsertSetting("maintenance_reasons", JSON.stringify(reasons)));
+    if (eta !== undefined) ops.push(upsertSetting("maintenance_eta", eta));
+
+    if (ops.length === 0) {
+      res.status(400).json({ error: "bad_request", message: "Nothing to update." });
+      return;
+    }
+
+    await Promise.all(ops);
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to update maintenance settings");
+    res.status(500).json({ error: "server_error", message: "Failed to update maintenance settings" });
   }
 });
 

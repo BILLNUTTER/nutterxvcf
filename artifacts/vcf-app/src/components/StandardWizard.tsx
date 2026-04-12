@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { playSuccessSound } from "@/lib/utils";
 import { friendlyError } from "@/lib/friendly-error";
-import { Loader2, ChevronRight, CheckCircle2, ShieldAlert, Smartphone, RefreshCw, Search } from "lucide-react";
+import { Loader2, ChevronRight, CheckCircle2, ShieldAlert, Smartphone, RefreshCw, Search, Copy, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const variants = {
@@ -19,7 +19,7 @@ const variants = {
 };
 
 type Step = 1 | 2 | 3;
-type PayStep = "idle" | "initiating" | "waiting" | "verifying" | "success" | "failed";
+type PayStep = "idle" | "initiating" | "waiting" | "verifying" | "success" | "failed" | "manual_done";
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 120_000;
@@ -124,6 +124,35 @@ async function verifyPayment(reference: string): Promise<{ status: string; messa
   return { status: json.status ?? "pending", message: json.message ?? "" };
 }
 
+async function checkPhoneAvailability(phone: string): Promise<{ status: "available" | "already_registered" | "suspended" }> {
+  const res = await fetch(`/api/check-phone?phone=${encodeURIComponent(phone)}&type=standard`);
+  if (!res.ok) return { status: "available" }; // fail open — server will catch at registration
+  return res.json() as Promise<{ status: "available" | "already_registered" | "suspended" }>;
+}
+
+async function submitRegistrationDirect(name: string, phone: string, countryCode: string): Promise<{ id: number }> {
+  const res = await fetch("/api/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, phone, countryCode, registrationType: "standard" }),
+  });
+  const json = await res.json() as { id?: number; error?: string; message?: string };
+  if (!res.ok) throw Object.assign(new Error(json.message ?? "Registration failed"), { status: res.status, data: json });
+  return { id: json.id! };
+}
+
+async function submitManualPayment(name: string, phone: string, mpesaMessage: string): Promise<void> {
+  const res = await fetch("/api/payment-confirmation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, phone, mpesaMessage }),
+  });
+  if (!res.ok) {
+    const json = await res.json() as { error?: string; message?: string };
+    throw Object.assign(new Error(json.message ?? "Submission failed"), { status: res.status, data: json });
+  }
+}
+
 export function StandardWizard({ registrationFee = 10 }: { registrationFee?: number }) {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>(1);
@@ -136,6 +165,9 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
   const [reference, setReference] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [paylorEnabled, setPaylorEnabled] = useState<boolean | null>(null);
+  const [checkingPhone, setCheckingPhone] = useState(false);
+  const [mpesaMsg, setMpesaMsg] = useState("");
+  const [copied, setCopied] = useState(false);
   // Keep the registrationId across retries so we don't re-create the row and
   // hit the unique (phone, type) constraint when the user clicks "TRY AGAIN".
   const [registrationId, setRegistrationId] = useState<number | null>(null);
@@ -169,14 +201,60 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
     setStep(2);
   };
 
-  const goToPayment = () => {
+  const goToPayment = async () => {
     clearError();
     if (!phone) { setError("Please enter your phone number."); return; }
     const parsed = parsePhoneNumber(phone);
     if (!parsed || !parsed.isValid()) { setError("That phone number doesn't look right. Please check and try again."); return; }
-    // Pre-fill payment phone from registration phone
+
+    setCheckingPhone(true);
+    try {
+      const check = await checkPhoneAvailability(parsed.number.toString());
+      if (check.status === "already_registered") {
+        setError("This number is already registered. Please use a different phone number.");
+        return;
+      }
+      if (check.status === "suspended") {
+        setError("This number has been suspended. Contact support on +254758891491.");
+        return;
+      }
+    } catch { /* fail open — server will re-check on registration */ } finally {
+      setCheckingPhone(false);
+    }
+
     if (!payPhone) setPayPhone(phone);
     setStep(3);
+  };
+
+  const handleManualSubmit = async () => {
+    clearError();
+    if (!mpesaMsg.trim()) { setError("Please paste your M-Pesa confirmation SMS."); return; }
+    setPayStep("initiating");
+    const parsed = parsePhoneNumber(phone);
+    const e164 = parsed?.number.toString() ?? phone;
+    const cc = `+${parsed?.countryCallingCode ?? "254"}`;
+
+    try {
+      let regId = registrationId;
+      if (regId === null) {
+        const reg = await submitRegistrationDirect(name.trim(), e164, cc);
+        regId = reg.id;
+        setRegistrationId(regId);
+      }
+      await submitManualPayment(name.trim(), e164, mpesaMsg.trim());
+      playSuccessSound();
+      setPayStep("manual_done");
+    } catch (err) {
+      setError(friendlyError(err, "Could not submit payment proof. Please try again."));
+      setPayStep("idle");
+    }
+  };
+
+  const copyNumber = () => {
+    navigator.clipboard.writeText("0758891491").then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
   };
 
   const stopPolling = () => {
@@ -381,8 +459,8 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
                 {error && <ErrorBox>{error}</ErrorBox>}
                 <div className="flex gap-3">
                   <Button variant="outline" className="flex-1 h-12" onClick={() => { clearError(); setStep(1); }}>BACK</Button>
-                  <Button className="flex-[2] h-12 text-base" onClick={goToPayment}>
-                    NEXT <ChevronRight className="w-4 h-4 ml-1" />
+                  <Button className="flex-[2] h-12 text-base" onClick={goToPayment} disabled={checkingPhone}>
+                    {checkingPhone ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />CHECKING...</> : <>NEXT <ChevronRight className="w-4 h-4 ml-1" /></>}
                   </Button>
                 </div>
               </motion.div>
@@ -395,53 +473,98 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
                 {/* Idle / ready to pay */}
                 {payStep === "idle" && (
                   <>
-                    <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/8 px-4 py-4 flex flex-col gap-3 shadow-[0_0_16px_rgba(251,191,36,0.1)]">
-                      <div className="flex items-center gap-2">
-                        <Smartphone className="w-5 h-5 text-amber-400 shrink-0" />
-                        <p className="text-sm font-bold font-mono uppercase tracking-widest text-amber-300">
-                          M-Pesa Payment — Ksh. {registrationFee}
-                        </p>
-                      </div>
-
-                      {/* Payment phone — editable, pre-filled from registration phone */}
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] font-mono text-amber-400/80 uppercase tracking-wider">
-                          M-Pesa number to receive the PIN prompt:
-                        </p>
-                        <div className="rounded-md border-2 overflow-hidden border-amber-500/40 focus-within:border-amber-400 focus-within:shadow-[0_0_10px_rgba(251,191,36,0.25)] transition-all bg-black/40">
-                          <PhoneInput
-                            international
-                            defaultCountry="KE"
-                            value={effectivePayPhone}
-                            onChange={(v) => setPayPhone(v || "")}
-                          />
+                    {/* ── PAYLOR ENABLED: STK Push ── */}
+                    {paylorEnabled !== false && (
+                      <>
+                        <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/8 px-4 py-4 flex flex-col gap-3 shadow-[0_0_16px_rgba(251,191,36,0.1)]">
+                          <div className="flex items-center gap-2">
+                            <Smartphone className="w-5 h-5 text-amber-400 shrink-0" />
+                            <p className="text-sm font-bold font-mono uppercase tracking-widest text-amber-300">
+                              M-Pesa Payment — Ksh. {registrationFee}
+                            </p>
+                          </div>
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] font-mono text-amber-400/80 uppercase tracking-wider">
+                              M-Pesa number to receive the PIN prompt:
+                            </p>
+                            <div className="rounded-md border-2 overflow-hidden border-amber-500/40 focus-within:border-amber-400 focus-within:shadow-[0_0_10px_rgba(251,191,36,0.25)] transition-all bg-black/40">
+                              <PhoneInput
+                                international
+                                defaultCountry="KE"
+                                value={effectivePayPhone}
+                                onChange={(v) => setPayPhone(v || "")}
+                              />
+                            </div>
+                            <p className="text-[10px] font-mono text-amber-400/60 leading-relaxed">
+                              Change this if you want to pay from a different number than your registered one.
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-[10px] font-mono text-amber-400/60 leading-relaxed">
-                          Change this if you want to pay from a different number than your registered one.
-                        </p>
-                      </div>
-                    </div>
-
-                    {paylorEnabled === false && (
-                      <InfoBox>
-                        ⚠ Automated payments are not yet configured. Contact admin on 0758891491.
-                      </InfoBox>
+                        {error && <ErrorBox>{error}</ErrorBox>}
+                        <div className="flex gap-3">
+                          <Button variant="outline" className="flex-1 h-12" onClick={() => { clearError(); setStep(2); }}>BACK</Button>
+                          <Button
+                            className="flex-[2] h-12 text-base bg-amber-600 hover:bg-amber-500 text-black font-bold shadow-[0_0_16px_rgba(251,191,36,0.3)]"
+                            onClick={handlePayNow}
+                          >
+                            PAY KSH {registrationFee} VIA M-PESA
+                          </Button>
+                        </div>
+                      </>
                     )}
 
-                    {error && <ErrorBox>{error}</ErrorBox>}
-
-                    <div className="flex gap-3">
-                      <Button variant="outline" className="flex-1 h-12" onClick={() => { clearError(); setStep(2); }}>
-                        BACK
-                      </Button>
-                      <Button
-                        className="flex-[2] h-12 text-base bg-amber-600 hover:bg-amber-500 text-black font-bold shadow-[0_0_16px_rgba(251,191,36,0.3)]"
-                        onClick={handlePayNow}
-                        disabled={paylorEnabled === false}
-                      >
-                        PAY KSH {registrationFee} VIA M-PESA
-                      </Button>
-                    </div>
+                    {/* ── PAYLOR DISABLED: Manual payment form ── */}
+                    {paylorEnabled === false && (
+                      <>
+                        <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/8 px-4 py-4 flex flex-col gap-3 shadow-[0_0_16px_rgba(251,191,36,0.1)]">
+                          <div className="flex items-center gap-2">
+                            <Smartphone className="w-5 h-5 text-amber-400 shrink-0" />
+                            <p className="text-sm font-bold font-mono uppercase tracking-widest text-amber-300">
+                              Manual M-Pesa Payment — Ksh. {registrationFee}
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-mono text-amber-300/80 leading-relaxed">
+                              Send <span className="font-bold text-amber-300">Ksh {registrationFee}</span> via M-Pesa to this number:
+                            </p>
+                            <button
+                              onClick={copyNumber}
+                              className="w-full flex items-center justify-between rounded-lg border border-amber-500/50 bg-black/40 px-4 py-3 hover:bg-amber-500/10 transition-colors group"
+                            >
+                              <span className="text-xl font-bold font-mono text-white tracking-widest">0758891491</span>
+                              <span className="flex items-center gap-1.5 text-[10px] font-mono text-amber-400/70 group-hover:text-amber-400 transition-colors">
+                                {copied ? <><Check className="w-3 h-3" />COPIED</> : <><Copy className="w-3 h-3" />TAP TO COPY</>}
+                              </span>
+                            </button>
+                            <p className="text-[10px] font-mono text-amber-400/60 leading-relaxed">
+                              Paybill/Send Money. After sending, paste the M-Pesa SMS confirmation below.
+                            </p>
+                          </div>
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] font-mono text-amber-400/80 uppercase tracking-wider">
+                              Paste your M-Pesa confirmation SMS:
+                            </p>
+                            <textarea
+                              value={mpesaMsg}
+                              onChange={(e) => setMpesaMsg(e.target.value)}
+                              rows={4}
+                              placeholder={"e.g. TXN123ABC confirmed. Ksh10.00 sent to 0758891491..."}
+                              className="w-full rounded-md border-2 border-amber-500/40 bg-black/40 px-3 py-2.5 text-xs font-mono text-white placeholder:text-muted-foreground/40 focus:border-amber-400 focus:outline-none focus:shadow-[0_0_10px_rgba(251,191,36,0.2)] transition-all resize-none"
+                            />
+                          </div>
+                        </div>
+                        {error && <ErrorBox>{error}</ErrorBox>}
+                        <div className="flex gap-3">
+                          <Button variant="outline" className="flex-1 h-12" onClick={() => { clearError(); setStep(2); }}>BACK</Button>
+                          <Button
+                            className="flex-[2] h-12 text-base bg-amber-600 hover:bg-amber-500 text-black font-bold shadow-[0_0_16px_rgba(251,191,36,0.3)]"
+                            onClick={handleManualSubmit}
+                          >
+                            SUBMIT PAYMENT PROOF
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -552,6 +675,37 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
                     >
                       CHANGE PHONE NUMBER
                     </Button>
+                  </div>
+                )}
+
+                {/* Manual payment submitted — pending admin review */}
+                {payStep === "manual_done" && (
+                  <div className="flex flex-col items-center gap-5 py-6">
+                    <div className="w-16 h-16 rounded-full border-2 border-amber-500/50 bg-amber-500/10 flex items-center justify-center shadow-[0_0_24px_rgba(251,191,36,0.2)]">
+                      <CheckCircle2 className="w-9 h-9 text-amber-400" />
+                    </div>
+                    <div className="text-center space-y-1.5">
+                      <p className="text-sm font-bold font-mono text-amber-300 uppercase tracking-widest">
+                        Payment Proof Received!
+                      </p>
+                      <p className="text-xs font-mono text-muted-foreground leading-relaxed max-w-xs">
+                        Your payment proof has been submitted for review. An admin will verify and approve your registration shortly.
+                      </p>
+                    </div>
+                    <div className="w-full rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-center space-y-1">
+                      <p className="text-[10px] font-mono text-amber-400/70 uppercase tracking-wider">Need help?</p>
+                      <p className="text-xs font-mono text-amber-300">WhatsApp: <span className="font-bold">+254758891491</span></p>
+                    </div>
+                    <a
+                      href="https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full"
+                    >
+                      <Button className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-bold shadow-[0_0_16px_rgba(74,222,128,0.2)]">
+                        JOIN WHATSAPP GROUP WHILE WAITING
+                      </Button>
+                    </a>
                   </div>
                 )}
 

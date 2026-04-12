@@ -10,10 +10,11 @@ function buildVcfContent(
   contacts: Array<{ name: string; phone: string }>,
 ): string {
   const entries = contacts.map(({ name, phone }) => {
+    const displayName = `${name} 💠`;
     return [
       "BEGIN:VCARD",
       "VERSION:3.0",
-      `FN:${name}`,
+      `FN:${displayName}`,
       `TEL;TYPE=CELL,VOICE:${phone}`,
       "END:VCARD",
     ].join("\r\n");
@@ -56,7 +57,7 @@ router.get("/vcf/download", async (req, res) => {
       .orderBy(registrationsTable.createdAt);
 
     const vcfContent = buildVcfContent(contacts);
-    const filename = type === "standard" ? "nutterx-standard-vcf.vcf" : "nutterx-bot-vcf.vcf";
+    const filename = "NUTTERXVCF.vcf";
 
     res.setHeader("Content-Type", "text/vcard; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
