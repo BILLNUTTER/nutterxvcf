@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "eCi982Tzf0XA_UCE8XHlh"
+uri = "file://artifacts/vcf-app/public/opengraph.png"
+type = "image"
+title = "nutterx vcf og image"
