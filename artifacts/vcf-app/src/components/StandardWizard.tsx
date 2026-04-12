@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import PhoneInput, { parsePhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -16,7 +17,7 @@ const variants = {
 };
 
 type Step = 1 | 2 | 3;
-type PayStep = "idle" | "initiating" | "waiting" | "verifying" | "success" | "failed" | "manual_done";
+type PayStep = "idle" | "initiating" | "waiting" | "verifying" | "success" | "failed";
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 120_000;
@@ -156,6 +157,7 @@ async function submitManualPayment(name: string, phone: string, mpesaMessage: st
 }
 
 export function StandardWizard({ registrationFee = 10 }: { registrationFee?: number }) {
+  const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -234,7 +236,7 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
       }
       await submitManualPayment(name.trim(), e164, mpesaMsg.trim());
       playSuccessSound();
-      setPayStep("manual_done");
+      setLocation("/pending");
     } catch (err) {
       setError(friendlyError(err, "Could not submit payment proof. Please try again."));
       setPayStep("idle");
@@ -642,37 +644,6 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
                     >
                       CHANGE PHONE NUMBER
                     </Button>
-                  </div>
-                )}
-
-                {/* Manual payment submitted — pending admin review */}
-                {payStep === "manual_done" && (
-                  <div className="flex flex-col items-center gap-5 py-6">
-                    <div className="w-16 h-16 rounded-full border-2 border-amber-500/50 bg-amber-500/10 flex items-center justify-center shadow-[0_0_24px_rgba(251,191,36,0.2)]">
-                      <CheckCircle2 className="w-9 h-9 text-amber-400" />
-                    </div>
-                    <div className="text-center space-y-1.5">
-                      <p className="text-sm font-bold font-mono text-amber-300 uppercase tracking-widest">
-                        Payment Proof Received!
-                      </p>
-                      <p className="text-xs font-mono text-muted-foreground leading-relaxed max-w-xs">
-                        Your payment proof has been submitted for review. An admin will verify and approve your registration shortly.
-                      </p>
-                    </div>
-                    <div className="w-full rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-center space-y-1">
-                      <p className="text-[10px] font-mono text-amber-400/70 uppercase tracking-wider">Need help?</p>
-                      <p className="text-xs font-mono text-amber-300">WhatsApp: <span className="font-bold">+254758891491</span></p>
-                    </div>
-                    <a
-                      href="https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full"
-                    >
-                      <Button className="w-full h-12 bg-green-600 hover:bg-green-500 text-white font-bold shadow-[0_0_16px_rgba(74,222,128,0.2)]">
-                        JOIN WHATSAPP GROUP WHILE WAITING
-                      </Button>
-                    </a>
                   </div>
                 )}
 
