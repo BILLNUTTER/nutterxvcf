@@ -44,6 +44,14 @@ async function upsertSetting(key: string, value: string) {
     });
 }
 
+/** Auto-approve a registration that has been paid for. */
+async function autoApproveRegistration(registrationId: number) {
+  await db
+    .update(registrationsTable)
+    .set({ status: "approved", updatedAt: new Date() })
+    .where(eq(registrationsTable.id, registrationId));
+}
+
 // ── Public: check if Paylor is enabled ──────────────────────────────────────
 router.get("/paylor/config", async (req, res) => {
   try {
@@ -117,22 +125,22 @@ const InitiateBody = z.object({
 router.post("/paylor/initiate", async (req, res) => {
   const parsed = InitiateBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "validation_error", message: parsed.error.message });
+    res.status(400).json({ error: "validation_error", message: "Invalid payment details." });
     return;
   }
   const { registrationId, phone, name } = parsed.data;
 
   const config = await getPaylorConfig().catch(() => null);
   if (!config) {
-    res.status(500).json({ error: "server_error", message: "Failed to load payment config" });
+    res.status(500).json({ error: "server_error", message: "Payment service unavailable. Please try again." });
     return;
   }
   if (!config.enabled) {
-    res.status(503).json({ error: "paylor_disabled", message: "Automated payments are not enabled." });
+    res.status(503).json({ error: "paylor_disabled", message: "Automated payments are not enabled. Contact admin on 0758891491." });
     return;
   }
   if (!config.apiKey || !config.channelId) {
-    res.status(503).json({ error: "paylor_unconfigured", message: "Payment gateway not configured. Contact admin." });
+    res.status(503).json({ error: "paylor_unconfigured", message: "Payment gateway not configured. Contact admin on 0758891491." });
     return;
   }
 
@@ -143,7 +151,7 @@ router.post("/paylor/initiate", async (req, res) => {
     .where(eq(registrationsTable.id, registrationId))
     .limit(1);
   if (!reg) {
-    res.status(404).json({ error: "not_found", message: "Registration not found" });
+    res.status(404).json({ error: "not_found", message: "Registration not found. Please restart the process." });
     return;
   }
 
@@ -193,13 +201,13 @@ router.post("/paylor/initiate", async (req, res) => {
     const data = (await paylorRes.json()) as { transactionId?: string; message?: string };
     if (!paylorRes.ok) {
       req.log.error({ data }, "Paylor STK push rejected");
-      res.status(502).json({ error: "paylor_error", message: data.message ?? "Payment gateway error. Try again." });
+      res.status(502).json({ error: "paylor_error", message: data.message ?? "Payment gateway returned an error. Please try again." });
       return;
     }
     paylorTransactionId = data.transactionId;
   } catch (err) {
     req.log.error({ err }, "Paylor API unreachable");
-    res.status(502).json({ error: "paylor_unreachable", message: "Payment gateway unreachable. Try again." });
+    res.status(502).json({ error: "paylor_unreachable", message: "Could not reach the payment gateway. Check your internet and try again." });
     return;
   }
 
@@ -239,6 +247,16 @@ router.get("/paylor/status/:reference", async (req, res) => {
       res.status(404).json({ error: "not_found", message: "Transaction not found" });
       return;
     }
+
+    // If still pending, auto-approve in DB if somehow already completed
+    if (tx.status === "completed") {
+      try {
+        await autoApproveRegistration(tx.registrationId);
+      } catch {
+        // non-fatal
+      }
+    }
+
     res.json({
       status: tx.status,
       reference: tx.reference,
@@ -249,6 +267,113 @@ router.get("/paylor/status/:reference", async (req, res) => {
     req.log.error({ err }, "Failed to fetch Paylor transaction status");
     res.status(500).json({ error: "server_error", message: "Failed to fetch status" });
   }
+});
+
+// ── POST /api/paylor/verify ──────────────────────────────────────────────────
+// Called by the frontend "Verify Payment" button. Queries Paylor's live API
+// (not just local DB) so a failed callback doesn't block the user.
+const VerifyBody = z.object({
+  reference: z.string().min(1),
+});
+
+router.post("/paylor/verify", async (req, res) => {
+  const parsed = VerifyBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "validation_error", message: "Reference is required." });
+    return;
+  }
+  const { reference } = parsed.data;
+
+  // Look up local transaction record
+  const [tx] = await db
+    .select()
+    .from(paylorTransactionsTable)
+    .where(eq(paylorTransactionsTable.reference, reference))
+    .limit(1);
+
+  if (!tx) {
+    res.status(404).json({ error: "not_found", message: "Payment record not found. Please start over." });
+    return;
+  }
+
+  // Already confirmed locally — just auto-approve and return
+  if (tx.status === "completed") {
+    try {
+      await autoApproveRegistration(tx.registrationId);
+    } catch {
+      // non-fatal
+    }
+    res.json({ status: "completed", message: "Payment already confirmed." });
+    return;
+  }
+
+  // Query Paylor's live API using the transaction ID
+  const config = await getPaylorConfig().catch(() => null);
+  if (!config?.apiKey) {
+    res.status(503).json({ error: "paylor_unconfigured", message: "Payment gateway not configured. Contact admin on 0758891491." });
+    return;
+  }
+
+  if (!tx.paylorTransactionId) {
+    res.status(422).json({ error: "no_transaction_id", message: "No payment transaction ID found. Please try paying again." });
+    return;
+  }
+
+  let liveStatus: string | undefined;
+  let mpesaReceipt: string | undefined;
+
+  try {
+    const paylorRes = await fetch(
+      `${PAYLOR_BASE}/merchants/payments/${encodeURIComponent(tx.paylorTransactionId)}`,
+      {
+        headers: { Authorization: `Bearer ${config.apiKey}` },
+      },
+    );
+
+    if (paylorRes.ok) {
+      const data = (await paylorRes.json()) as {
+        status?: string;
+        metadata?: { mpesaReceipt?: string };
+        mpesaReceipt?: string;
+      };
+      liveStatus = data.status?.toLowerCase();
+      mpesaReceipt = data.metadata?.mpesaReceipt ?? data.mpesaReceipt;
+    } else {
+      req.log.warn({ ref: reference }, "Paylor live status check returned non-OK");
+    }
+  } catch (err) {
+    req.log.error({ err }, "Paylor live status check failed");
+  }
+
+  // Map Paylor status to our status
+  const isConfirmed = liveStatus === "completed" || liveStatus === "success" || liveStatus === "paid";
+  const isFailed = liveStatus === "failed" || liveStatus === "cancelled" || liveStatus === "expired";
+
+  if (isConfirmed) {
+    // Update local DB
+    await db
+      .update(paylorTransactionsTable)
+      .set({ status: "completed", mpesaReceipt: mpesaReceipt ?? null, updatedAt: new Date() })
+      .where(eq(paylorTransactionsTable.reference, reference));
+
+    // Auto-approve registration
+    await autoApproveRegistration(tx.registrationId);
+
+    res.json({ status: "completed", message: "Payment verified and registration approved." });
+    return;
+  }
+
+  if (isFailed) {
+    await db
+      .update(paylorTransactionsTable)
+      .set({ status: "failed", failureReason: "Payment not completed", updatedAt: new Date() })
+      .where(eq(paylorTransactionsTable.reference, reference));
+    res.json({ status: "failed", message: "Payment was not completed. Please try again." });
+    return;
+  }
+
+  // Still pending according to Paylor
+  res.json({ status: "pending", message: "Payment not confirmed yet. Please enter your M-Pesa PIN if you have not done so." });
 });
 
 // ── POST /api/paylor/callback ─────────────────────────────────────────────────
@@ -291,10 +416,22 @@ router.post("/paylor/callback", async (req, res) => {
   if (transaction?.reference) {
     try {
       if (event === "payment.success") {
+        // Update transaction to completed
         await db
           .update(paylorTransactionsTable)
           .set({ status: "completed", mpesaReceipt: transaction.metadata?.mpesaReceipt ?? null, updatedAt: new Date() })
           .where(eq(paylorTransactionsTable.reference, transaction.reference));
+
+        // Auto-approve the registration — no admin action required
+        const [tx] = await db
+          .select({ registrationId: paylorTransactionsTable.registrationId })
+          .from(paylorTransactionsTable)
+          .where(eq(paylorTransactionsTable.reference, transaction.reference))
+          .limit(1);
+        if (tx) {
+          await autoApproveRegistration(tx.registrationId);
+          req.log.info({ registrationId: tx.registrationId }, "Auto-approved registration after payment");
+        }
       } else if (event === "payment.failed" || event === "payment.cancelled") {
         await db
           .update(paylorTransactionsTable)

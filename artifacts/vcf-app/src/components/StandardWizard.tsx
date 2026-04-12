@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { playSuccessSound } from "@/lib/utils";
-import { Loader2, ChevronRight, CheckCircle2, ShieldAlert, Smartphone, RefreshCw } from "lucide-react";
+import { Loader2, ChevronRight, CheckCircle2, ShieldAlert, Smartphone, RefreshCw, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const variants = {
@@ -18,7 +18,7 @@ const variants = {
 };
 
 type Step = 1 | 2 | 3;
-type PayStep = "idle" | "initiating" | "waiting" | "success" | "failed";
+type PayStep = "idle" | "initiating" | "waiting" | "verifying" | "success" | "failed";
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 120_000;
@@ -75,8 +75,16 @@ function Label({ children }: { children: React.ReactNode }) {
 
 function ErrorBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="p-3 border border-destructive bg-destructive/10 text-destructive text-sm font-mono rounded-md">
-      {">"} ERR: {children}
+    <div className="p-3 border border-destructive/60 bg-destructive/10 text-destructive text-sm rounded-md leading-relaxed">
+      {children}
+    </div>
+  );
+}
+
+function InfoBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="p-3 border border-amber-500/40 bg-amber-500/8 text-amber-300 text-xs font-mono rounded-md leading-relaxed">
+      {children}
     </div>
   );
 }
@@ -94,14 +102,25 @@ async function initiatePaylorPush(data: { registrationId: number; phone: string;
     body: JSON.stringify(data),
   });
   const json = await res.json() as { reference?: string; message?: string };
-  if (!res.ok) throw new Error(json.message ?? "Failed to initiate payment");
+  if (!res.ok) throw new Error(json.message ?? "Failed to initiate payment. Please try again.");
   return { reference: json.reference! };
 }
 
 async function pollPaylorStatus(reference: string): Promise<{ status: string; mpesaReceipt?: string; failureReason?: string }> {
   const res = await fetch(`/api/paylor/status/${encodeURIComponent(reference)}`);
-  if (!res.ok) throw new Error("Status check failed");
+  if (!res.ok) throw new Error("Could not check payment status.");
   return res.json() as Promise<{ status: string; mpesaReceipt?: string; failureReason?: string }>;
+}
+
+async function verifyPayment(reference: string): Promise<{ status: string; message: string }> {
+  const res = await fetch("/api/paylor/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reference }),
+  });
+  const json = await res.json() as { status?: string; message?: string };
+  if (!res.ok) throw new Error(json.message ?? "Could not verify payment. Please try again.");
+  return { status: json.status ?? "pending", message: json.message ?? "" };
 }
 
 export function StandardWizard() {
@@ -109,6 +128,7 @@ export function StandardWizard() {
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [payPhone, setPayPhone] = useState(""); // M-Pesa payment phone (may differ from registration phone)
   const [error, setError] = useState("");
 
   const [payStep, setPayStep] = useState<PayStep>("idle");
@@ -119,7 +139,6 @@ export function StandardWizard() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
 
-  // Check if Paylor is configured on mount
   useEffect(() => {
     fetchPaylorConfig()
       .then((c) => setPaylorEnabled(c.enabled))
@@ -129,7 +148,7 @@ export function StandardWizard() {
   const submitReg = useSubmitRegistration({
     mutation: {
       onError: (err: ApiError) => {
-        setError(err.message || "Registration failed.");
+        setError(err.message || "Registration failed. Please try again.");
         setPayStep("idle");
       },
     },
@@ -140,7 +159,7 @@ export function StandardWizard() {
   const goToPhone = () => {
     clearError();
     if (!name.trim() || name.trim().length < 2) {
-      setError("Enter your full name (min 2 characters).");
+      setError("Please enter your full name (at least 2 characters).");
       return;
     }
     setStep(2);
@@ -150,7 +169,9 @@ export function StandardWizard() {
     clearError();
     if (!phone) { setError("Please enter your phone number."); return; }
     const parsed = parsePhoneNumber(phone);
-    if (!parsed || !parsed.isValid()) { setError("Invalid phone number format."); return; }
+    if (!parsed || !parsed.isValid()) { setError("That phone number doesn't look right. Please check and try again."); return; }
+    // Pre-fill payment phone from registration phone
+    if (!payPhone) setPayPhone(phone);
     setStep(3);
   };
 
@@ -159,6 +180,14 @@ export function StandardWizard() {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
+  };
+
+  const handlePaymentConfirmed = () => {
+    stopPolling();
+    localStorage.setItem("vcf_pending_type", "standard");
+    setPayStep("success");
+    playSuccessSound();
+    setTimeout(() => setLocation("/pending"), 1400);
   };
 
   const startPolling = (ref: string) => {
@@ -173,20 +202,14 @@ export function StandardWizard() {
       if (elapsedRef.current >= POLL_TIMEOUT_MS) {
         stopPolling();
         setPayStep("failed");
-        setError("Payment timed out. The M-Pesa prompt was not responded to in time. Please try again.");
+        setError("The M-Pesa prompt was not completed in time. Please press \"Try Again\" to restart, or use the \"Verify Payment\" button if you already paid.");
         return;
       }
 
       try {
         const result = await pollPaylorStatus(ref);
         if (result.status === "completed") {
-          stopPolling();
-          // Payment confirmed — now safe to set pending type so PendingPage
-          // knows to redirect to WhatsApp group.
-          localStorage.setItem("vcf_pending_type", "standard");
-          setPayStep("success");
-          playSuccessSound();
-          setTimeout(() => setLocation("/pending"), 1200);
+          handlePaymentConfirmed();
         } else if (result.status === "failed" || result.status === "cancelled") {
           stopPolling();
           setPayStep("failed");
@@ -200,13 +223,21 @@ export function StandardWizard() {
 
   const handlePayNow = async () => {
     clearError();
+
+    const effectivePayPhone = payPhone || phone;
+    const parsedPay = parsePhoneNumber(effectivePayPhone);
+    if (!parsedPay || !parsedPay.isValid()) {
+      setError("The M-Pesa phone number doesn't look right. Please check it and try again.");
+      return;
+    }
+
     setPayStep("initiating");
 
-    const parsed = parsePhoneNumber(phone)!;
+    const parsedReg = parsePhoneNumber(phone)!;
     const payload = {
       name: name.trim(),
-      phone: parsed.number.toString(),
-      countryCode: `+${parsed.countryCallingCode}`,
+      phone: parsedReg.number.toString(),
+      countryCode: `+${parsedReg.countryCallingCode}`,
       registrationType: "standard" as RegistrationInputRegistrationType,
       alsoRegisterStandard: false,
     };
@@ -218,17 +249,14 @@ export function StandardWizard() {
           try {
             const { reference: ref } = await initiatePaylorPush({
               registrationId: data.id,
-              phone: parsed.number.toString(),
+              phone: parsedPay.number.toString(),
               name: name.trim(),
             });
-            // Do NOT touch localStorage here. vcf_claim_standard is not needed
-            // for the Paylor flow — payment confirmation triggers the WhatsApp
-            // redirect directly without storing anything until it's confirmed.
             setReference(ref);
             setPayStep("waiting");
             startPolling(ref);
           } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : "Failed to send payment prompt.";
+            const msg = err instanceof Error ? err.message : "Failed to send payment prompt. Please try again.";
             setError(msg);
             setPayStep("failed");
           }
@@ -237,19 +265,44 @@ export function StandardWizard() {
     );
   };
 
+  const handleVerifyPayment = async () => {
+    if (!reference) return;
+    clearError();
+    setPayStep("verifying");
+    try {
+      const result = await verifyPayment(reference);
+      if (result.status === "completed") {
+        handlePaymentConfirmed();
+      } else if (result.status === "failed") {
+        setPayStep("failed");
+        setError(result.message || "Payment was not completed. Please try again.");
+      } else {
+        // Still pending
+        setPayStep("waiting");
+        setError(result.message || "Payment not confirmed yet. Please enter your M-Pesa PIN if prompted.");
+        startPolling(reference);
+      }
+    } catch (err: unknown) {
+      setPayStep("waiting");
+      setError(err instanceof Error ? err.message : "Could not verify payment right now. Please wait or try again.");
+      startPolling(reference);
+    }
+  };
+
   const handleRetry = () => {
     stopPolling();
     setPayStep("idle");
     setReference("");
     setElapsed(0);
     clearError();
-    // Reset registration so they re-submit on next attempt
     submitReg.reset();
   };
 
   useEffect(() => () => stopPolling(), []);
 
   const secondsLeft = Math.max(0, Math.round((POLL_TIMEOUT_MS - elapsed) / 1000));
+  const effectivePayPhone = payPhone || phone;
+  const parsedPayPhone = effectivePayPhone ? parsePhoneNumber(effectivePayPhone) : null;
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -290,14 +343,17 @@ export function StandardWizard() {
               </motion.div>
             )}
 
-            {/* ── Step 2: Phone ── */}
+            {/* ── Step 2: Registration Phone ── */}
             {step === 2 && (
               <motion.div key="s2" variants={variants} initial="enter" animate="center" exit="exit" className="space-y-5">
                 <FieldBox>
-                  <Label>Phone Number</Label>
+                  <Label>Your Phone Number (for VCF contact)</Label>
                   <div className="rounded-md border-2 overflow-hidden border-primary/40 focus-within:border-primary focus-within:shadow-[0_0_12px_hsl(var(--primary)/0.4)] transition-all">
                     <PhoneInput international defaultCountry="KE" value={phone} onChange={(v) => setPhone(v || "")} />
                   </div>
+                  <p className="text-[10px] font-mono text-muted-foreground/60 leading-relaxed">
+                    This number will appear in the VCF contact card shared in the group.
+                  </p>
                 </FieldBox>
                 {error && <ErrorBox>{error}</ErrorBox>}
                 <div className="flex gap-3">
@@ -309,34 +365,44 @@ export function StandardWizard() {
               </motion.div>
             )}
 
-            {/* ── Step 3: Paylor STK Push ── */}
+            {/* ── Step 3: Payment ── */}
             {step === 3 && (
               <motion.div key="s3" variants={variants} initial="enter" animate="center" exit="exit" className="space-y-4">
 
                 {/* Idle / ready to pay */}
                 {payStep === "idle" && (
                   <>
-                    <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/8 px-4 py-4 flex flex-col items-center gap-2 shadow-[0_0_16px_rgba(251,191,36,0.1)]">
-                      <Smartphone className="w-8 h-8 text-amber-400" />
-                      <p className="text-sm font-bold font-mono uppercase tracking-widest text-amber-300 text-center">
-                        M-Pesa Payment
-                      </p>
-                      <p className="text-xs text-amber-400/80 font-mono text-center leading-relaxed">
-                        Click <span className="text-amber-300 font-bold">PAY KSH 10</span> and you will receive an M-Pesa PIN prompt on your phone{" "}
-                        <span className="text-amber-300 font-bold">{parsePhoneNumber(phone)?.formatInternational()}</span>.
-                        Enter your PIN to complete payment.
-                      </p>
-                      <div className="mt-1 px-3 py-1.5 rounded-full border border-amber-500/40 bg-black/40">
-                        <span className="text-2xl font-black font-mono text-amber-300 tracking-widest drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]">
-                          Ksh. 10
-                        </span>
+                    <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/8 px-4 py-4 flex flex-col gap-3 shadow-[0_0_16px_rgba(251,191,36,0.1)]">
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="w-5 h-5 text-amber-400 shrink-0" />
+                        <p className="text-sm font-bold font-mono uppercase tracking-widest text-amber-300">
+                          M-Pesa Payment — Ksh. 10
+                        </p>
+                      </div>
+
+                      {/* Payment phone — editable, pre-filled from registration phone */}
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-mono text-amber-400/80 uppercase tracking-wider">
+                          M-Pesa number to receive the PIN prompt:
+                        </p>
+                        <div className="rounded-md border-2 overflow-hidden border-amber-500/40 focus-within:border-amber-400 focus-within:shadow-[0_0_10px_rgba(251,191,36,0.25)] transition-all bg-black/40">
+                          <PhoneInput
+                            international
+                            defaultCountry="KE"
+                            value={effectivePayPhone}
+                            onChange={(v) => setPayPhone(v || "")}
+                          />
+                        </div>
+                        <p className="text-[10px] font-mono text-amber-400/60 leading-relaxed">
+                          Change this if you want to pay from a different number than your registered one.
+                        </p>
                       </div>
                     </div>
 
                     {paylorEnabled === false && (
-                      <div className="p-3 border border-amber-600/50 bg-amber-600/10 text-amber-400 text-xs font-mono rounded-md">
-                        ⚠ Automated payments not yet configured. Contact admin at 0758891491.
-                      </div>
+                      <InfoBox>
+                        ⚠ Automated payments are not yet configured. Contact admin on 0758891491.
+                      </InfoBox>
                     )}
 
                     {error && <ErrorBox>{error}</ErrorBox>}
@@ -360,13 +426,13 @@ export function StandardWizard() {
                 {payStep === "initiating" && (
                   <div className="flex flex-col items-center gap-4 py-8">
                     <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                    <p className="text-sm font-mono text-primary text-center">Creating your registration...</p>
+                    <p className="text-sm font-mono text-primary text-center">Sending M-Pesa prompt...</p>
                   </div>
                 )}
 
                 {/* Waiting: STK push sent, polling */}
                 {payStep === "waiting" && (
-                  <div className="flex flex-col items-center gap-4 py-6">
+                  <div className="flex flex-col items-center gap-4 py-4">
                     <div className="relative">
                       <div className="w-16 h-16 rounded-full border-4 border-amber-500/30 flex items-center justify-center">
                         <Smartphone className="w-8 h-8 text-amber-400" />
@@ -381,14 +447,25 @@ export function StandardWizard() {
                       </p>
                       <p className="text-xs font-mono text-muted-foreground leading-relaxed">
                         An M-Pesa PIN prompt has been sent to<br />
-                        <span className="text-white font-bold">{parsePhoneNumber(phone)?.formatInternational()}</span>
+                        <span className="text-white font-bold">{parsedPayPhone?.formatInternational() ?? effectivePayPhone}</span>
                         <br />Enter your PIN to complete the Ksh 10 payment.
                       </p>
                     </div>
                     <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground/60">
                       <Loader2 className="w-3 h-3 animate-spin" />
-                      Waiting for confirmation... {secondsLeft}s
+                      Checking automatically... {secondsLeft}s
                     </div>
+
+                    {error && <ErrorBox>{error}</ErrorBox>}
+
+                    {/* Verify Payment — manual live check */}
+                    <Button
+                      className="w-full h-11 bg-amber-600 hover:bg-amber-500 text-black font-bold"
+                      onClick={handleVerifyPayment}
+                    >
+                      <Search className="w-4 h-4 mr-2" /> VERIFY PAYMENT
+                    </Button>
+
                     <Button
                       variant="ghost"
                       size="sm"
@@ -400,6 +477,19 @@ export function StandardWizard() {
                   </div>
                 )}
 
+                {/* Verifying: manual live check in progress */}
+                {payStep === "verifying" && (
+                  <div className="flex flex-col items-center gap-4 py-8">
+                    <Loader2 className="w-12 h-12 text-amber-400 animate-spin" />
+                    <p className="text-sm font-bold font-mono text-amber-300 uppercase tracking-widest text-center">
+                      Checking Payment Status...
+                    </p>
+                    <p className="text-xs font-mono text-muted-foreground text-center">
+                      Querying payment gateway directly. Please wait.
+                    </p>
+                  </div>
+                )}
+
                 {/* Success */}
                 {payStep === "success" && (
                   <div className="flex flex-col items-center gap-4 py-8">
@@ -408,7 +498,7 @@ export function StandardWizard() {
                       Payment Confirmed!
                     </p>
                     <p className="text-xs font-mono text-muted-foreground text-center">
-                      Redirecting to your registration status...
+                      Taking you to the WhatsApp group...
                     </p>
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                   </div>
@@ -418,6 +508,14 @@ export function StandardWizard() {
                 {payStep === "failed" && (
                   <div className="flex flex-col gap-4">
                     {error && <ErrorBox>{error}</ErrorBox>}
+                    {reference && (
+                      <Button
+                        className="w-full h-12 bg-amber-600 hover:bg-amber-500 text-black font-bold"
+                        onClick={handleVerifyPayment}
+                      >
+                        <Search className="w-4 h-4 mr-2" /> VERIFY PAYMENT
+                      </Button>
+                    )}
                     <Button
                       className="w-full h-12"
                       onClick={handleRetry}
