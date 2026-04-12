@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Smartphone, CheckCircle2, XCircle, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSuccessSound } from "@/lib/utils";
+import { friendlyError } from "@/lib/friendly-error";
 
 const ADMIN_WHATSAPP = "0758891491";
 const ADMIN_WA_LINK = "https://wa.me/254758891491";
@@ -89,7 +90,7 @@ export function BotFlow() {
       playSuccessSound();
       setFlowStep("done");
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err: unknown) => setError(friendlyError(err)),
   });
 
   // Redirect to WhatsApp group as soon as registration is done

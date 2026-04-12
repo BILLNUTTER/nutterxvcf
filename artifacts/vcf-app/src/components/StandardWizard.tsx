@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { playSuccessSound } from "@/lib/utils";
+import { friendlyError } from "@/lib/friendly-error";
 import { Loader2, ChevronRight, CheckCircle2, ShieldAlert, Smartphone, RefreshCw, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -151,7 +152,7 @@ export function StandardWizard() {
   const submitReg = useSubmitRegistration({
     mutation: {
       onError: (err: ApiError) => {
-        setError(err.message || "Registration failed. Please try again.");
+        setError(friendlyError(err, "Registration failed. Please try again."));
         setPayStep("idle");
       },
     },
@@ -235,8 +236,7 @@ export function StandardWizard() {
       setPayStep("waiting");
       startPolling(ref);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to send payment prompt. Please try again.";
-      setError(msg);
+      setError(friendlyError(err, "Failed to send payment prompt. Please try again."));
       setPayStep("failed");
     }
   };
@@ -299,7 +299,7 @@ export function StandardWizard() {
       }
     } catch (err: unknown) {
       setPayStep("waiting");
-      setError(err instanceof Error ? err.message : "Could not verify payment right now. Please wait or try again.");
+      setError(friendlyError(err, "Could not verify payment right now. Please wait and try again."));
       startPolling(reference);
     }
   };
