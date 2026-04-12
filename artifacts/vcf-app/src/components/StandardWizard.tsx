@@ -181,6 +181,9 @@ export function StandardWizard() {
         const result = await pollPaylorStatus(ref);
         if (result.status === "completed") {
           stopPolling();
+          // Payment confirmed — now safe to set pending type so PendingPage
+          // knows to redirect to WhatsApp group.
+          localStorage.setItem("vcf_pending_type", "standard");
           setPayStep("success");
           playSuccessSound();
           setTimeout(() => setLocation("/pending"), 1200);
@@ -212,15 +215,16 @@ export function StandardWizard() {
       { data: payload },
       {
         onSuccess: async (data: RegistrationResponse) => {
-          localStorage.setItem("vcf_claim_standard", data.claimToken);
-          localStorage.setItem("vcf_pending_type", "standard");
-
           try {
             const { reference: ref } = await initiatePaylorPush({
               registrationId: data.id,
               phone: parsed.number.toString(),
               name: name.trim(),
             });
+            // Only set claim token now — do NOT set vcf_pending_type yet.
+            // That is set only after payment is confirmed so PendingPage
+            // doesn't immediately redirect to WhatsApp before payment is done.
+            localStorage.setItem("vcf_claim_standard", data.claimToken);
             setReference(ref);
             setPayStep("waiting");
             startPolling(ref);
