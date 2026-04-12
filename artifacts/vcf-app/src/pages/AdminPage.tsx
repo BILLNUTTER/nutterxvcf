@@ -169,18 +169,20 @@ export default function AdminPage() {
         <PaylorSettingsPanel token={token!} onAuthError={handleAuthError} />
 
         <Tabs defaultValue="standard" className="w-full">
-          <TabsList className="grid w-full sm:w-[768px] grid-cols-4 mb-8">
-            <TabsTrigger value="standard">Standard VCF</TabsTrigger>
-            <TabsTrigger value="bot">Bot VCF</TabsTrigger>
-            <TabsTrigger value="payments">
-              <Smartphone className="w-3.5 h-3.5 mr-1.5" />
-              Payments
-            </TabsTrigger>
-            <TabsTrigger value="maintenance">
-              <Wrench className="w-3.5 h-3.5 mr-1.5" />
-              Maintenance
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto pb-1 mb-8">
+            <TabsList className="flex w-max min-w-full h-auto">
+              <TabsTrigger value="standard" className="flex-1 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 py-2">Standard VCF</TabsTrigger>
+              <TabsTrigger value="bot" className="flex-1 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 py-2">Bot VCF</TabsTrigger>
+              <TabsTrigger value="payments" className="flex-1 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 py-2">
+                <Smartphone className="w-3 h-3 mr-1 sm:mr-1.5 sm:w-3.5 sm:h-3.5" />
+                Payments
+              </TabsTrigger>
+              <TabsTrigger value="maintenance" className="flex-1 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 py-2">
+                <Wrench className="w-3 h-3 mr-1 sm:mr-1.5 sm:w-3.5 sm:h-3.5" />
+                Maintenance
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="standard" className="mt-0">
             <RegistrationTable type="standard" token={token!} onAuthError={handleAuthError} />
@@ -293,12 +295,12 @@ function MaintenancePanel({ token, onAuthError }: { token: string; onAuthError: 
   return (
     <Card className="border-t-4 border-t-amber-500/60 bg-black/40">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Wrench className="w-5 h-5 text-amber-400" />
-            <CardTitle className="text-lg tracking-widest text-amber-300">MAINTENANCE MODE</CardTitle>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <Wrench className="w-5 h-5 text-amber-400 shrink-0" />
+            <CardTitle className="text-base sm:text-lg tracking-widest text-amber-300 truncate">MAINTENANCE MODE</CardTitle>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 self-start sm:self-auto">
             {data?.enabled && (
               <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/50 font-mono text-[10px]">
                 ACTIVE
@@ -550,10 +552,10 @@ function TargetSettingsPanel({ token, onAuthError }: { token: string; onAuthErro
                 </div>
               </div>
 
-              <div className="flex flex-col items-start sm:items-end gap-1">
+              <div className="flex flex-col items-start sm:items-end gap-1 w-full sm:w-auto">
                 <Button
                   type="submit"
-                  className="h-10 px-6"
+                  className="h-10 px-6 w-full sm:w-auto"
                 >
                   <Save className="w-4 h-4 mr-2" />
                   SAVE SETTINGS
@@ -653,24 +655,24 @@ function PaylorSettingsPanel({ token, onAuthError }: { token: string; onAuthErro
   return (
     <Card className="border-t-4 border-t-amber-500/60 bg-black/40">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-400" />
-            <CardTitle className="text-lg tracking-widest text-amber-300">PAYLORKE PAYMENT API</CardTitle>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <Zap className="w-5 h-5 text-amber-400 shrink-0" />
+            <CardTitle className="text-base sm:text-lg tracking-widest text-amber-300 truncate">PAYLORKE PAYMENT API</CardTitle>
           </div>
           <button
             type="button"
             onClick={toggleEnabled}
-            className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest transition-colors"
+            className="self-start sm:self-auto flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest transition-colors px-3 py-1.5 rounded-lg border border-current/20 hover:bg-current/5"
           >
             {enabled ? (
               <>
-                <ToggleRight className="w-6 h-6 text-green-400" />
+                <ToggleRight className="w-5 h-5 text-green-400 shrink-0" />
                 <span className="text-green-400">ENABLED</span>
               </>
             ) : (
               <>
-                <ToggleLeft className="w-6 h-6 text-muted-foreground" />
+                <ToggleLeft className="w-5 h-5 text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">DISABLED</span>
               </>
             )}
@@ -744,11 +746,11 @@ function PaylorSettingsPanel({ token, onAuthError }: { token: string; onAuthErro
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
               <Button
                 type="submit"
                 disabled={saveMutation.isPending}
-                className="h-10 px-6 bg-amber-600 hover:bg-amber-500 text-black font-bold"
+                className="h-10 px-6 w-full sm:w-auto bg-amber-600 hover:bg-amber-500 text-black font-bold"
               >
                 <Save className="w-4 h-4 mr-2" />
                 {saveMutation.isPending ? "SAVING..." : "SAVE API SETTINGS"}
@@ -867,7 +869,7 @@ function BotVerifierPanel({ token, onAuthError }: { token: string; onAuthError: 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form onSubmit={handleAdd} className="flex gap-2 items-end">
+        <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2 sm:items-end">
           <div className="flex-1 space-y-1">
             <label className="text-xs font-bold font-mono text-secondary tracking-widest">ADD VERIFIED BOT NUMBER</label>
             <input
@@ -882,11 +884,11 @@ function BotVerifierPanel({ token, onAuthError }: { token: string; onAuthError: 
           <Button
             type="submit"
             disabled={addMutation.isPending || !newPhone.trim()}
-            className="h-10 px-4 border-2 border-secondary/50 bg-secondary/10 text-secondary hover:bg-secondary/20 shadow-[0_0_8px_hsl(var(--secondary)/0.2)]"
+            className="h-10 w-full sm:w-auto px-4 border-2 border-secondary/50 bg-secondary/10 text-secondary hover:bg-secondary/20 shadow-[0_0_8px_hsl(var(--secondary)/0.2)]"
             variant="ghost"
           >
             <Plus className="w-4 h-4 mr-1" />
-            {addMutation.isPending ? "ADDING..." : "ADD"}
+            {addMutation.isPending ? "ADDING..." : "ADD NUMBER"}
           </Button>
         </form>
         {msg && (
