@@ -189,7 +189,8 @@ router.post("/paylor/initiate", async (req, res) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        phone,
+        // Daraja (M-Pesa) expects the number without the leading '+', e.g. 254XXXXXXXXX
+        phone: phone.replace(/^\+/, ""),
         amount: 10,
         channelId: config.channelId,
         reference,
