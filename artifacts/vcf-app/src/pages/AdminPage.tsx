@@ -739,10 +739,36 @@ async function fetchPaylorTransactions(token: string): Promise<{ transactions: P
   return res.json() as Promise<{ transactions: PaylorTx[]; totalRevenue: number; completedCount: number; total: number }>;
 }
 
+async function deletePaylorTransaction(token: string, id: number): Promise<void> {
+  const res = await fetch(`/api/admin/paylor-transactions/${id}`, {
+    method: "DELETE",
+    headers: { "x-admin-token": token },
+  });
+  if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
+}
+
 function PaymentsTable({ token, onAuthError }: { token: string; onAuthError: () => void }) {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [confirmPaylorDeleteId, setConfirmPaylorDeleteId] = useState<number | null>(null);
+
+  const invalidatePaylor = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/paylor-transactions"] });
+
+  const paylorDeleteMutation = useMutation({
+    mutationFn: (id: number) => deletePaylorTransaction(token, id),
+    onSuccess: () => { setConfirmPaylorDeleteId(null); invalidatePaylor(); },
+    onError: (err: unknown) => { if ((err as { status?: number }).status === 401) onAuthError(); },
+  });
+
+  const handlePaylorDelete = (id: number) => {
+    if (confirmPaylorDeleteId === id) {
+      paylorDeleteMutation.mutate(id);
+    } else {
+      setConfirmPaylorDeleteId(id);
+      setTimeout(() => setConfirmPaylorDeleteId(null), 4000);
+    }
+  };
 
   const { data: paylorData, isLoading: paylorLoading, error: paylorError } = useQuery({
     queryKey: ["/api/admin/paylor-transactions"],
@@ -866,8 +892,8 @@ function PaymentsTable({ token, onAuthError }: { token: string; onAuthError: () 
                       : "border-amber-500/20 bg-amber-500/5"
                   }`}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="space-y-0.5">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                    <div className="space-y-0.5 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-white">{tx.registrantName ?? "Unknown"}</span>
                         {paylorStatusBadge(tx.status)}
@@ -896,6 +922,17 @@ function PaymentsTable({ token, onAuthError }: { token: string; onAuthError: () 
                         Ref: {tx.reference}
                       </p>
                     </div>
+                    <Button
+                      size="sm"
+                      variant={confirmPaylorDeleteId === tx.id ? "destructive" : "ghost"}
+                      className={`h-8 px-2 shrink-0 ${confirmPaylorDeleteId === tx.id ? "animate-pulse" : "text-destructive/60 hover:text-destructive hover:bg-destructive/10"}`}
+                      onClick={() => handlePaylorDelete(tx.id)}
+                      disabled={paylorDeleteMutation.isPending}
+                      title={confirmPaylorDeleteId === tx.id ? "Click again to confirm deletion" : "Delete this record"}
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1" />
+                      {confirmPaylorDeleteId === tx.id ? "CONFIRM?" : "DELETE"}
+                    </Button>
                   </div>
                 </div>
               ))}

@@ -432,6 +432,22 @@ router.get("/admin/paylor-transactions", requireAdmin, async (req, res) => {
   }
 });
 
+// ── DELETE /api/admin/paylor-transactions/:id ─────────────────────────────────
+router.delete("/admin/paylor-transactions/:id", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "bad_request", message: "Invalid id" });
+    return;
+  }
+  try {
+    await db.delete(paylorTransactionsTable).where(eq(paylorTransactionsTable.id, id));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to delete paylor transaction");
+    res.status(500).json({ error: "server_error", message: "Failed to delete transaction" });
+  }
+});
+
 // ── POST /api/paylor/callback ─────────────────────────────────────────────────
 router.post("/paylor/callback", async (req, res) => {
   // Paylor sends the signature in different headers depending on version
