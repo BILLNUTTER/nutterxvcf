@@ -1,7 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "wouter";
-import { useSubmitRegistration } from "@workspace/api-client-react";
-import type { RegistrationInputRegistrationType, RegistrationResponse, ApiError } from "@workspace/api-client-react";
 import PhoneInput, { parsePhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -96,7 +93,12 @@ async function fetchPaylorConfig(): Promise<{ enabled: boolean }> {
   return res.json() as Promise<{ enabled: boolean }>;
 }
 
-async function initiatePaylorPush(data: { registrationId: number; phone: string; name: string }): Promise<{ reference: string }> {
+async function initiatePaylorPush(data: {
+  name: string;
+  registrantPhone: string;
+  registrantCountryCode: string;
+  payPhone: string;
+}): Promise<{ reference: string }> {
   const res = await fetch("/api/paylor/initiate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -154,7 +156,6 @@ async function submitManualPayment(name: string, phone: string, mpesaMessage: st
 }
 
 export function StandardWizard({ registrationFee = 10 }: { registrationFee?: number }) {
-  const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -180,15 +181,6 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
       .then((c) => setPaylorEnabled(c.enabled))
       .catch(() => setPaylorEnabled(false));
   }, []);
-
-  const submitReg = useSubmitRegistration({
-    mutation: {
-      onError: (err: ApiError) => {
-        setError(friendlyError(err, "Registration failed. Please try again."));
-        setPayStep("idle");
-      },
-    },
-  });
 
   const clearError = () => setError("");
 
@@ -265,10 +257,11 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
 
   const handlePaymentConfirmed = () => {
     stopPolling();
-    localStorage.setItem("vcf_pending_type", "standard");
     setPayStep("success");
     playSuccessSound();
-    setTimeout(() => setLocation("/pending"), 1400);
+    setTimeout(() => {
+      window.location.href = "https://chat.whatsapp.com/BYzNlaEiCS9LPblEXIYJnA?mode=gi_t";
+    }, 1400);
   };
 
   const startPolling = (ref: string) => {
@@ -302,22 +295,6 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
     }, POLL_INTERVAL_MS);
   };
 
-  const sendStkPush = async (regId: number, parsedPay: ReturnType<typeof parsePhoneNumber>) => {
-    try {
-      const { reference: ref } = await initiatePaylorPush({
-        registrationId: regId,
-        phone: parsedPay!.number.toString(),
-        name: name.trim(),
-      });
-      setReference(ref);
-      setPayStep("waiting");
-      startPolling(ref);
-    } catch (err: unknown) {
-      setError(friendlyError(err, "Failed to send payment prompt. Please try again."));
-      setPayStep("failed");
-    }
-  };
-
   const handlePayNow = async () => {
     clearError();
 
@@ -328,33 +305,27 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
       return;
     }
 
+    const parsedReg = parsePhoneNumber(phone);
+    if (!parsedReg) return;
+    const registrantPhone = parsedReg.number.toString();
+    const registrantCountryCode = `+${parsedReg.countryCallingCode}`;
+
     setPayStep("initiating");
 
-    // If we already have a registration from a previous attempt, reuse it —
-    // this prevents hitting the unique (phone, type) constraint on retry.
-    if (registrationId !== null) {
-      await sendStkPush(registrationId, parsedPay);
-      return;
+    try {
+      const { reference: ref } = await initiatePaylorPush({
+        name: name.trim(),
+        registrantPhone,
+        registrantCountryCode,
+        payPhone: parsedPay.number.toString(),
+      });
+      setReference(ref);
+      setPayStep("waiting");
+      startPolling(ref);
+    } catch (err: unknown) {
+      setError(friendlyError(err, "Failed to send payment prompt. Please try again."));
+      setPayStep("failed");
     }
-
-    const parsedReg = parsePhoneNumber(phone)!;
-    const payload = {
-      name: name.trim(),
-      phone: parsedReg.number.toString(),
-      countryCode: `+${parsedReg.countryCallingCode}`,
-      registrationType: "standard" as RegistrationInputRegistrationType,
-      alsoRegisterStandard: false,
-    };
-
-    submitReg.mutate(
-      { data: payload },
-      {
-        onSuccess: async (data: RegistrationResponse) => {
-          setRegistrationId(data.id);
-          await sendStkPush(data.id, parsedPay);
-        },
-      },
-    );
   };
 
   const handleVerifyPayment = async () => {
@@ -387,9 +358,6 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
     setReference("");
     setElapsed(0);
     clearError();
-    // Do NOT clear registrationId here — reusing it avoids the "already
-    // registered" error when the user retries with the same phone number.
-    submitReg.reset();
   };
 
   const handleChangePhone = () => {

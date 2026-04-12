@@ -10,6 +10,9 @@ export const paylorTransactionsTable = pgTable("paylor_transactions", {
   status: text("status").notNull().default("pending"),
   mpesaReceipt: text("mpesa_receipt"),
   failureReason: text("failure_reason"),
+  registrantName: text("registrant_name"),
+  registrantPhone: text("registrant_phone"),
+  registrantCountryCode: text("registrant_country_code"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

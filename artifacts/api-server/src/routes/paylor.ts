@@ -1,11 +1,12 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { settingsTable, paylorTransactionsTable, registrationsTable } from "@workspace/db/schema";
-import { eq, inArray, desc, sql } from "drizzle-orm";
+import { eq, inArray, desc, sql, and } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin-tokens";
 import { z } from "zod";
 import crypto from "crypto";
 import { getRegistrationFee } from "./settings";
+import type { PaylorTransaction } from "@workspace/db/schema";
 
 const router: IRouter = Router();
 
@@ -45,12 +46,81 @@ async function upsertSetting(key: string, value: string) {
     });
 }
 
-/** Auto-approve a registration that has been paid for. */
-async function autoApproveRegistration(registrationId: number) {
+function generateClaimToken(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+/**
+ * Auto-create (if needed) and approve the registration linked to a Paylor
+ * transaction.  This is the ONLY place a Standard registration is created —
+ * ensuring no phone ever enters the system before payment is confirmed.
+ *
+ * - If the transaction already has a registrationId, just mark it approved.
+ * - If not, create a new registration with status "approved" immediately,
+ *   then store the id back on the transaction row.
+ */
+async function autoCreateAndApproveRegistration(tx: PaylorTransaction) {
+  // ── Legacy path: registration was pre-created (old transactions) ──────────
+  if (tx.registrationId !== null && tx.registrationId !== undefined) {
+    await db
+      .update(registrationsTable)
+      .set({ status: "approved" })
+      .where(eq(registrationsTable.id, tx.registrationId));
+    return;
+  }
+
+  // ── New path: create registration on first payment confirmation ───────────
+  const rName = tx.registrantName;
+  const rPhone = tx.registrantPhone;
+  const rCC = tx.registrantCountryCode;
+
+  if (!rName || !rPhone || !rCC) {
+    // Cannot create — missing data (very old row, skip)
+    return;
+  }
+
+  // Check if registration already exists for this phone (idempotency)
+  const [existing] = await db
+    .select({ id: registrationsTable.id })
+    .from(registrationsTable)
+    .where(
+      and(
+        eq(registrationsTable.phone, rPhone),
+        eq(registrationsTable.registrationType, "standard"),
+      ),
+    )
+    .limit(1);
+
+  let regId: number;
+
+  if (existing) {
+    // Approve the existing record and link it
+    regId = existing.id;
+    await db
+      .update(registrationsTable)
+      .set({ status: "approved" })
+      .where(eq(registrationsTable.id, regId));
+  } else {
+    // Create brand-new registration, already approved
+    const [newReg] = await db
+      .insert(registrationsTable)
+      .values({
+        name: rName,
+        phone: rPhone,
+        countryCode: rCC,
+        registrationType: "standard",
+        status: "approved",
+        claimToken: generateClaimToken(),
+      })
+      .returning({ id: registrationsTable.id });
+    regId = newReg.id;
+  }
+
+  // Link the transaction to the (new or existing) registration row
   await db
-    .update(registrationsTable)
-    .set({ status: "approved", updatedAt: new Date() })
-    .where(eq(registrationsTable.id, registrationId));
+    .update(paylorTransactionsTable)
+    .set({ registrationId: regId, updatedAt: new Date() })
+    .where(eq(paylorTransactionsTable.id, tx.id));
 }
 
 // ── Public: check if Paylor is enabled ──────────────────────────────────────
@@ -117,10 +187,13 @@ router.patch("/admin/paylor-settings", requireAdmin, async (req, res) => {
 });
 
 // ── POST /api/paylor/initiate ─────────────────────────────────────────────────
+// Accepts registrant details — NO pre-registration. The registration row is
+// only created (as "approved") once Paylor confirms payment.
 const InitiateBody = z.object({
-  registrationId: z.number().int().positive(),
-  phone: z.string().min(10).max(20),
   name: z.string().min(1).max(200),
+  registrantPhone: z.string().min(10).max(20),
+  registrantCountryCode: z.string().min(2).max(8),
+  payPhone: z.string().min(10).max(20),
 });
 
 router.post("/paylor/initiate", async (req, res) => {
@@ -129,7 +202,7 @@ router.post("/paylor/initiate", async (req, res) => {
     res.status(400).json({ error: "validation_error", message: "Invalid payment details." });
     return;
   }
-  const { registrationId, phone, name } = parsed.data;
+  const { name, registrantPhone, registrantCountryCode, payPhone } = parsed.data;
 
   const config = await getPaylorConfig().catch(() => null);
   if (!config) {
@@ -145,27 +218,38 @@ router.post("/paylor/initiate", async (req, res) => {
     return;
   }
 
-  // Verify registration exists
-  const [reg] = await db
-    .select({ id: registrationsTable.id })
+  // Block suspended or already-approved registrations
+  const [existingReg] = await db
+    .select({ id: registrationsTable.id, status: registrationsTable.status })
     .from(registrationsTable)
-    .where(eq(registrationsTable.id, registrationId))
+    .where(
+      and(
+        eq(registrationsTable.phone, registrantPhone),
+        eq(registrationsTable.registrationType, "standard"),
+      ),
+    )
     .limit(1);
-  if (!reg) {
-    res.status(404).json({ error: "not_found", message: "Registration not found. Please restart the process." });
+
+  if (existingReg) {
+    if (existingReg.status === "suspended") {
+      res.status(403).json({ error: "suspended", message: "This phone number has been suspended. Contact support on +254758891491." });
+      return;
+    }
+    res.status(409).json({ error: "already_registered", message: "This phone number is already registered for Standard VCF." });
     return;
   }
 
-  // Check for existing transaction
+  // Dedup: if there's a recent pending transaction for this registrant phone, reuse it
   const [existingTx] = await db
     .select()
     .from(paylorTransactionsTable)
-    .where(eq(paylorTransactionsTable.registrationId, registrationId))
+    .where(eq(paylorTransactionsTable.registrantPhone, registrantPhone))
+    .orderBy(desc(paylorTransactionsTable.createdAt))
     .limit(1);
 
   if (existingTx) {
     if (existingTx.status === "completed") {
-      res.status(409).json({ error: "already_paid", message: "Payment already confirmed for this registration." });
+      res.status(409).json({ error: "already_paid", message: "Payment already confirmed for this number." });
       return;
     }
     const ageMs = Date.now() - new Date(existingTx.createdAt).getTime();
@@ -175,7 +259,7 @@ router.post("/paylor/initiate", async (req, res) => {
     }
   }
 
-  const reference = `VCF-${registrationId}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+  const reference = `VCF-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
   const callbackUrl =
     config.callbackUrl ||
     `${req.protocol}://${req.get("host")}/api/paylor/callback`;
@@ -192,12 +276,11 @@ router.post("/paylor/initiate", async (req, res) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // Daraja (M-Pesa) expects the number without the leading '+', e.g. 254XXXXXXXXX
-        phone: phone.replace(/^\+/, ""),
+        phone: payPhone.replace(/^\+/, ""),
         amount: fee,
         channelId: config.channelId,
         reference,
-        callback_url: callbackUrl,  // Paylor expects snake_case
+        callback_url: callbackUrl,
         description: `VCF Registration - ${name}`,
       }),
     });
@@ -213,7 +296,6 @@ router.post("/paylor/initiate", async (req, res) => {
       return;
     }
 
-    // Paylor wraps the ID inside a nested "data" object in some versions
     const inner = (data.data && typeof data.data === "object" ? data.data : data) as Record<string, unknown>;
     paylorTransactionId = (inner.paymentId ?? inner.payment_id ?? inner.transactionId ?? inner.transaction_id ?? inner.id ?? inner.reference ?? null) as string | undefined;
   } catch (err) {
@@ -222,21 +304,28 @@ router.post("/paylor/initiate", async (req, res) => {
     return;
   }
 
-  // Save transaction
+  // Save transaction — NO registrationId yet; registrant data stored for later
   try {
     await db
       .insert(paylorTransactionsTable)
       .values({
         paylorTransactionId: paylorTransactionId ?? null,
         reference,
-        registrationId,
-        phone,
-        amount: 10,
+        registrationId: null,
+        phone: payPhone,
+        amount: fee,
         status: "pending",
+        registrantName: name,
+        registrantPhone,
+        registrantCountryCode,
       })
       .onConflictDoUpdate({
         target: paylorTransactionsTable.reference,
-        set: { paylorTransactionId: paylorTransactionId ?? null, status: "pending", updatedAt: new Date() },
+        set: {
+          paylorTransactionId: paylorTransactionId ?? null,
+          status: "pending",
+          updatedAt: new Date(),
+        },
       });
   } catch (err) {
     req.log.error({ err }, "Failed to save Paylor transaction to DB");
@@ -259,10 +348,9 @@ router.get("/paylor/status/:reference", async (req, res) => {
       return;
     }
 
-    // If still pending, auto-approve in DB if somehow already completed
     if (tx.status === "completed") {
       try {
-        await autoApproveRegistration(tx.registrationId);
+        await autoCreateAndApproveRegistration(tx);
       } catch {
         // non-fatal
       }
@@ -281,8 +369,6 @@ router.get("/paylor/status/:reference", async (req, res) => {
 });
 
 // ── POST /api/paylor/verify ──────────────────────────────────────────────────
-// Called by the frontend "Verify Payment" button. Queries Paylor's live API
-// (not just local DB) so a failed callback doesn't block the user.
 const VerifyBody = z.object({
   reference: z.string().min(1),
 });
@@ -295,7 +381,6 @@ router.post("/paylor/verify", async (req, res) => {
   }
   const { reference } = parsed.data;
 
-  // Look up local transaction record
   const [tx] = await db
     .select()
     .from(paylorTransactionsTable)
@@ -307,18 +392,14 @@ router.post("/paylor/verify", async (req, res) => {
     return;
   }
 
-  // Already confirmed locally — just auto-approve and return
   if (tx.status === "completed") {
     try {
-      await autoApproveRegistration(tx.registrationId);
-    } catch {
-      // non-fatal
-    }
+      await autoCreateAndApproveRegistration(tx);
+    } catch { /* non-fatal */ }
     res.json({ status: "completed", message: "Payment already confirmed." });
     return;
   }
 
-  // Query Paylor's live API using the transaction ID
   const config = await getPaylorConfig().catch(() => null);
   if (!config?.apiKey) {
     res.status(503).json({ error: "paylor_unconfigured", message: "Payment gateway not configured. Contact admin on 0758891491." });
@@ -339,7 +420,6 @@ router.post("/paylor/verify", async (req, res) => {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 25_000);
   try {
-    // Correct Paylor endpoint: GET /merchants/payments/transactions/{transactionId}
     const url = `${PAYLOR_BASE}/merchants/payments/transactions/${encodeURIComponent(tx.paylorTransactionId)}`;
     const paylorRes = await fetch(url, {
       headers: { Authorization: `Bearer ${config.apiKey}`, Accept: "application/json" },
@@ -353,7 +433,6 @@ router.post("/paylor/verify", async (req, res) => {
     let raw: Record<string, unknown> = {};
     try { raw = JSON.parse(text) as Record<string, unknown>; } catch { /* non-JSON */ }
 
-    // Paylor may wrap the transaction inside a "data" key
     const txData = (raw.data && typeof raw.data === "object" ? raw.data : raw) as Record<string, unknown>;
     const flat = { ...raw, ...txData } as Record<string, unknown>;
 
@@ -371,14 +450,21 @@ router.post("/paylor/verify", async (req, res) => {
   const isFailed = FAILED_STATUSES.has(liveStatus ?? "");
 
   if (isConfirmed) {
-    // Update local DB
     await db
       .update(paylorTransactionsTable)
       .set({ status: "completed", mpesaReceipt: mpesaReceipt ?? null, updatedAt: new Date() })
       .where(eq(paylorTransactionsTable.reference, reference));
 
-    // Auto-approve registration
-    await autoApproveRegistration(tx.registrationId);
+    // Fetch the refreshed tx row (now has registrant data) for creation
+    const [refreshedTx] = await db
+      .select()
+      .from(paylorTransactionsTable)
+      .where(eq(paylorTransactionsTable.reference, reference))
+      .limit(1);
+
+    if (refreshedTx) {
+      await autoCreateAndApproveRegistration(refreshedTx);
+    }
 
     res.json({ status: "completed", message: "Payment verified and registration approved." });
     return;
@@ -393,7 +479,6 @@ router.post("/paylor/verify", async (req, res) => {
     return;
   }
 
-  // Still pending according to Paylor
   res.json({ status: "pending", message: "Payment not confirmed yet. Please enter your M-Pesa PIN if you have not done so." });
 });
 
@@ -407,14 +492,15 @@ router.get("/admin/paylor-transactions", requireAdmin, async (req, res) => {
         paylorTransactionId: paylorTransactionsTable.paylorTransactionId,
         registrationId: paylorTransactionsTable.registrationId,
         payPhone: paylorTransactionsTable.phone,
+        registrantPhone: paylorTransactionsTable.registrantPhone,
+        registrantName: paylorTransactionsTable.registrantName,
         amount: paylorTransactionsTable.amount,
         status: paylorTransactionsTable.status,
         mpesaReceipt: paylorTransactionsTable.mpesaReceipt,
         failureReason: paylorTransactionsTable.failureReason,
         createdAt: paylorTransactionsTable.createdAt,
         updatedAt: paylorTransactionsTable.updatedAt,
-        registrantName: registrationsTable.name,
-        registrantPhone: registrationsTable.phone,
+        registrantPhone2: registrationsTable.phone,
       })
       .from(paylorTransactionsTable)
       .leftJoin(registrationsTable, eq(paylorTransactionsTable.registrationId, registrationsTable.id))
@@ -453,7 +539,6 @@ router.delete("/admin/paylor-transactions/:id", requireAdmin, async (req, res) =
 
 // ── POST /api/paylor/callback ─────────────────────────────────────────────────
 router.post("/paylor/callback", async (req, res) => {
-  // Paylor sends the signature in different headers depending on version
   const signature = (
     req.headers["x-payment-signature"] ??
     req.headers["x-paylor-signature"] ??
@@ -473,7 +558,6 @@ router.post("/paylor/callback", async (req, res) => {
   if (webhookSecret && signature) {
     const payload = JSON.stringify(req.body);
     const expected = crypto.createHmac("sha256", webhookSecret).update(payload).digest("hex");
-    // Paylor may prefix with "sha256="
     const receivedHex = signature.startsWith("sha256=") ? signature.slice(7) : signature;
     try {
       const match = crypto.timingSafeEqual(Buffer.from(receivedHex, "hex"), Buffer.from(expected, "hex"));
@@ -490,7 +574,6 @@ router.post("/paylor/callback", async (req, res) => {
   }
 
   const body = req.body as Record<string, unknown>;
-  // Unwrap nested containers Paylor uses in different versions
   const txNested = (body.transaction && typeof body.transaction === "object" ? body.transaction : {}) as Record<string, unknown>;
   const dataNested = (body.data && typeof body.data === "object" ? body.data : {}) as Record<string, unknown>;
   const flat = { ...body, ...dataNested, ...txNested } as Record<string, unknown>;
@@ -517,15 +600,19 @@ router.post("/paylor/callback", async (req, res) => {
           .set({ status: "completed", mpesaReceipt: receipt, updatedAt: new Date() })
           .where(eq(paylorTransactionsTable.reference, internalRef));
 
-        // Auto-approve the registration — no admin action required
+        // Fetch the full updated transaction (includes registrant data)
         const [localTx] = await db
-          .select({ registrationId: paylorTransactionsTable.registrationId })
+          .select()
           .from(paylorTransactionsTable)
           .where(eq(paylorTransactionsTable.reference, internalRef))
           .limit(1);
+
         if (localTx) {
-          await autoApproveRegistration(localTx.registrationId);
-          req.log.info({ registrationId: localTx.registrationId }, "Auto-approved registration after payment webhook");
+          await autoCreateAndApproveRegistration(localTx);
+          req.log.info(
+            { registrantPhone: localTx.registrantPhone, registrationId: localTx.registrationId },
+            "Auto-created and approved registration after payment webhook",
+          );
         }
       } else if (isFailed) {
         await db
