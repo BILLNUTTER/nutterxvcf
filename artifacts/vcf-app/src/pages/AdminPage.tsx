@@ -23,6 +23,7 @@ interface VcfSettings {
   botTarget: number;
   standardApproved: number;
   botApproved: number;
+  registrationFee: number;
 }
 
 async function fetchSettings(): Promise<VcfSettings> {
@@ -47,6 +48,21 @@ async function updateTarget(
   if (!res.ok) {
     const err = await res.json() as { message?: string };
     throw new Error(err.message ?? "Failed to update target");
+  }
+}
+
+async function updateFee(token: string, registrationFee: number): Promise<void> {
+  const res = await fetch("/api/admin/settings", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-token": token,
+    },
+    body: JSON.stringify({ registrationFee }),
+  });
+  if (!res.ok) {
+    const err = await res.json() as { message?: string };
+    throw new Error(err.message ?? "Failed to update fee");
   }
 }
 
@@ -189,59 +205,50 @@ function TargetSettingsPanel({ token, onAuthError }: { token: string; onAuthErro
 
   const [stdTarget, setStdTarget] = useState<string>("");
   const [botTarget, setBotTarget] = useState<string>("");
+  const [feeInput, setFeeInput] = useState<string>("");
   const [saveMsg, setSaveMsg] = useState<string>("");
 
   const stdValue = stdTarget !== "" ? stdTarget : String(settings?.standardTarget ?? "");
   const botValue = botTarget !== "" ? botTarget : String(settings?.botTarget ?? "");
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ type, target }: { type: "standard" | "bot"; target: number }) => {
-      await updateTarget(token, type, target);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      setSaveMsg("TARGETS UPDATED");
-      setTimeout(() => setSaveMsg(""), 3000);
-      setStdTarget("");
-      setBotTarget("");
-    },
-    onError: (err: Error) => {
-      if ((err as { status?: number }).status === 401 || err.message.toLowerCase().includes("token")) {
-        onAuthError();
-        return;
-      }
-      setSaveMsg(`ERROR: ${err.message}`);
-      setTimeout(() => setSaveMsg(""), 4000);
-    },
-  });
+  const feeValue = feeInput !== "" ? feeInput : String(settings?.registrationFee ?? "10");
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const std = parseInt(stdValue, 10);
     const bot = parseInt(botValue, 10);
+    const fee = parseFloat(feeValue);
     if (isNaN(std) || isNaN(bot) || std < 1 || bot < 1) {
       setSaveMsg("ERROR: Targets must be positive integers");
       setTimeout(() => setSaveMsg(""), 3000);
       return;
     }
-    const promises: Promise<void>[] = [];
-    if (std !== settings?.standardTarget) {
-      promises.push(updateTarget(token, "standard", std));
+    if (isNaN(fee) || fee <= 0) {
+      setSaveMsg("ERROR: Fee must be a positive number");
+      setTimeout(() => setSaveMsg(""), 3000);
+      return;
     }
-    if (bot !== settings?.botTarget) {
-      promises.push(updateTarget(token, "bot", bot));
-    }
-    if (promises.length === 0) {
+    const ops: Promise<void>[] = [];
+    if (std !== settings?.standardTarget) ops.push(updateTarget(token, "standard", std));
+    if (bot !== settings?.botTarget) ops.push(updateTarget(token, "bot", bot));
+    if (fee !== settings?.registrationFee) ops.push(updateFee(token, fee));
+    if (ops.length === 0) {
       setSaveMsg("NO CHANGES DETECTED");
       setTimeout(() => setSaveMsg(""), 2000);
       return;
     }
-    updateMutation.mutate({ type: "standard", target: std });
-    if (bot !== settings?.botTarget) {
-      updateTarget(token, "bot", bot)
-        .then(() => queryClient.invalidateQueries({ queryKey: ["/api/settings"] }))
-        .catch(() => {});
-    }
+    Promise.all(ops)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+        setSaveMsg("SETTINGS SAVED");
+        setTimeout(() => setSaveMsg(""), 3000);
+        setStdTarget("");
+        setBotTarget("");
+        setFeeInput("");
+      })
+      .catch((err: Error) => {
+        setSaveMsg(`ERROR: ${err.message}`);
+        setTimeout(() => setSaveMsg(""), 4000);
+      });
   };
 
   return (
@@ -257,63 +264,87 @@ function TargetSettingsPanel({ token, onAuthError }: { token: string; onAuthErro
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="font-mono text-muted-foreground text-sm">LOADING TARGETS...</p>
+          <p className="font-mono text-muted-foreground text-sm">LOADING SETTINGS...</p>
         ) : (
-          <form onSubmit={handleSave} className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 space-y-1.5">
-              <label className="text-xs font-bold font-mono text-primary tracking-widest">
-                STANDARD TARGET
-              </label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={100000}
-                  value={stdValue}
-                  onChange={(e) => setStdTarget(e.target.value)}
-                  className="font-mono"
-                  placeholder="e.g. 500"
-                />
-                <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-                  ({settings?.standardApproved ?? 0} approved)
-                </span>
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="flex-1 space-y-1.5">
+                <label className="text-xs font-bold font-mono text-primary tracking-widest">
+                  STANDARD TARGET
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100000}
+                    value={stdValue}
+                    onChange={(e) => setStdTarget(e.target.value)}
+                    className="font-mono"
+                    placeholder="e.g. 500"
+                  />
+                  <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                    ({settings?.standardApproved ?? 0} approved)
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-1.5">
+                <label className="text-xs font-bold font-mono text-secondary tracking-widest">
+                  BOT TARGET
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100000}
+                    value={botValue}
+                    onChange={(e) => setBotTarget(e.target.value)}
+                    className="font-mono"
+                    placeholder="e.g. 200"
+                  />
+                  <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                    ({settings?.botApproved ?? 0} approved)
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="flex-1 space-y-1.5">
-              <label className="text-xs font-bold font-mono text-secondary tracking-widest">
-                BOT TARGET
-              </label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={1}
-                  max={100000}
-                  value={botValue}
-                  onChange={(e) => setBotTarget(e.target.value)}
-                  className="font-mono"
-                  placeholder="e.g. 200"
-                />
-                <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
-                  ({settings?.botApproved ?? 0} approved)
-                </span>
+            <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="flex-1 space-y-1.5">
+                <label className="text-xs font-bold font-mono text-amber-400 tracking-widest">
+                  REGISTRATION FEE (KSH)
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1000000}
+                    step="0.01"
+                    value={feeValue}
+                    onChange={(e) => setFeeInput(e.target.value)}
+                    className="font-mono max-w-[180px] border-amber-500/40 focus:border-amber-400"
+                    placeholder="e.g. 10"
+                  />
+                  <span className="text-xs font-mono text-muted-foreground">
+                    Displayed & charged for Standard VCF registration
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col items-start sm:items-end gap-1">
-              <Button
-                type="submit"
-                disabled={updateMutation.isPending}
-                className="h-10 px-6"
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {updateMutation.isPending ? "SAVING..." : "SAVE TARGETS"}
-              </Button>
-              {saveMsg && (
-                <span className={`text-xs font-mono ${saveMsg.startsWith("ERROR") ? "text-destructive" : "text-green-400"}`}>
-                  {saveMsg}
-                </span>
-              )}
+              <div className="flex flex-col items-start sm:items-end gap-1">
+                <Button
+                  type="submit"
+                  className="h-10 px-6"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  SAVE SETTINGS
+                </Button>
+                {saveMsg && (
+                  <span className={`text-xs font-mono ${saveMsg.startsWith("ERROR") ? "text-destructive" : "text-green-400"}`}>
+                    {saveMsg}
+                  </span>
+                )}
+              </div>
             </div>
           </form>
         )}

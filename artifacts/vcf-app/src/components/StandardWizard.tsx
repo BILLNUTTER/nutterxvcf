@@ -124,7 +124,7 @@ async function verifyPayment(reference: string): Promise<{ status: string; messa
   return { status: json.status ?? "pending", message: json.message ?? "" };
 }
 
-export function StandardWizard() {
+export function StandardWizard({ registrationFee = 10 }: { registrationFee?: number }) {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
@@ -399,7 +399,7 @@ export function StandardWizard() {
                       <div className="flex items-center gap-2">
                         <Smartphone className="w-5 h-5 text-amber-400 shrink-0" />
                         <p className="text-sm font-bold font-mono uppercase tracking-widest text-amber-300">
-                          M-Pesa Payment — Ksh. 10
+                          M-Pesa Payment — Ksh. {registrationFee}
                         </p>
                       </div>
 
@@ -439,7 +439,7 @@ export function StandardWizard() {
                         onClick={handlePayNow}
                         disabled={paylorEnabled === false}
                       >
-                        PAY KSH 10 VIA M-PESA
+                        PAY KSH {registrationFee} VIA M-PESA
                       </Button>
                     </div>
                   </>
@@ -471,7 +471,7 @@ export function StandardWizard() {
                       <p className="text-xs font-mono text-muted-foreground leading-relaxed">
                         An M-Pesa PIN prompt has been sent to<br />
                         <span className="text-white font-bold">{parsedPayPhone?.formatInternational() ?? effectivePayPhone}</span>
-                        <br />Enter your PIN to complete the Ksh 10 payment.
+                        <br />Enter your PIN to complete the Ksh {registrationFee} payment.
                       </p>
                     </div>
                     <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground/60">

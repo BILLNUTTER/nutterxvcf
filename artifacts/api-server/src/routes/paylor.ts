@@ -5,6 +5,7 @@ import { eq, inArray, desc, sql } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin-tokens";
 import { z } from "zod";
 import crypto from "crypto";
+import { getRegistrationFee } from "./settings";
 
 const router: IRouter = Router();
 
@@ -179,6 +180,8 @@ router.post("/paylor/initiate", async (req, res) => {
     config.callbackUrl ||
     `${req.protocol}://${req.get("host")}/api/paylor/callback`;
 
+  const fee = await getRegistrationFee();
+
   // Initiate STK push
   let paylorTransactionId: string | undefined;
   try {
@@ -191,7 +194,7 @@ router.post("/paylor/initiate", async (req, res) => {
       body: JSON.stringify({
         // Daraja (M-Pesa) expects the number without the leading '+', e.g. 254XXXXXXXXX
         phone: phone.replace(/^\+/, ""),
-        amount: 10,
+        amount: fee,
         channelId: config.channelId,
         reference,
         callback_url: callbackUrl,  // Paylor expects snake_case

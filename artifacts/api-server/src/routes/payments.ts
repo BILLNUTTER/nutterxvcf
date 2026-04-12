@@ -4,6 +4,7 @@ import { paymentConfirmationsTable } from "@workspace/db/schema";
 import { eq, like } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin-tokens";
 import { z } from "zod";
+import { getRegistrationFee } from "./settings";
 
 const router: IRouter = Router();
 
@@ -28,7 +29,7 @@ interface ValidationError {
   error: string;
 }
 
-function validateMpesaMessage(raw: string): ValidationResult | ValidationError {
+function validateMpesaMessage(raw: string, expectedFee: number): ValidationResult | ValidationError {
   const msg = raw.trim();
 
   // 1. Must start with a valid M-Pesa transaction code then " Confirmed."
@@ -40,7 +41,7 @@ function validateMpesaMessage(raw: string): ValidationResult | ValidationError {
     };
   }
 
-  // 2. Extract the sent amount and verify it is exactly Ksh 10.00
+  // 2. Extract the sent amount and verify it matches the required fee
   const amountMatch = /Ksh(\d[\d,]*(?:\.\d{1,2})?) sent to/i.exec(msg);
   if (!amountMatch) {
     return {
@@ -48,11 +49,11 @@ function validateMpesaMessage(raw: string): ValidationResult | ValidationError {
       error: "Invalid message: could not find a 'Ksh… sent to' amount.",
     };
   }
-  const sentAmount = amountMatch[1].replace(/,/g, "");
-  if (parseFloat(sentAmount) !== 10.00 || sentAmount !== "10.00") {
+  const sentAmount = parseFloat(amountMatch[1].replace(/,/g, ""));
+  if (Math.abs(sentAmount - expectedFee) > 0.01) {
     return {
       valid: false,
-      error: `Wrong payment amount: message shows Ksh${amountMatch[1]} but exactly Ksh10.00 is required.`,
+      error: `Wrong payment amount: message shows Ksh${amountMatch[1]} but exactly Ksh${expectedFee.toFixed(2)} is required.`,
     };
   }
 
@@ -121,8 +122,10 @@ router.post("/payment-confirmation", async (req, res) => {
 
   const { name, phone, mpesaMessage } = parsed.data;
 
+  const expectedFee = await getRegistrationFee().catch(() => 10);
+
   // ── Validate message format ──
-  const validation = validateMpesaMessage(mpesaMessage);
+  const validation = validateMpesaMessage(mpesaMessage, expectedFee);
   if (!validation.valid) {
     res.status(400).json({ error: "invalid_mpesa_message", message: validation.error });
     return;
@@ -140,7 +143,7 @@ router.post("/payment-confirmation", async (req, res) => {
       res.status(409).json({
         error: "mpesa_code_already_used",
         message:
-          `M-Pesa message already used to verify a different number. Send Ksh 10 to ${MPESA_NUMBER} and use the new confirmation message.`,
+          `M-Pesa message already used to verify a different number. Send Ksh ${expectedFee} to ${MPESA_NUMBER} and use the new confirmation message.`,
       });
       return;
     }

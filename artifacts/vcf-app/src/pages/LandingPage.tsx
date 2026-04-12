@@ -17,6 +17,7 @@ interface VcfSettings {
   botTarget: number;
   standardApproved: number;
   botApproved: number;
+  registrationFee: number;
 }
 
 async function fetchSettings(): Promise<VcfSettings> {
@@ -103,6 +104,7 @@ export default function LandingPage() {
 
   const standardTarget = settings?.standardTarget ?? 500;
   const botTarget = settings?.botTarget ?? 200;
+  const registrationFee = settings?.registrationFee ?? 10;
 
   const stdUsers = verifiedUsers?.standard || [];
   const botUsers = verifiedUsers?.bot || [];
@@ -206,7 +208,7 @@ export default function LandingPage() {
                 onDownloadVcf={stdTargetReached ? () => openVcfGuide("standard") : undefined}
               />
 
-              <StandardWizard />
+              <StandardWizard registrationFee={registrationFee} />
 
               {/* Standard directory */}
               <div className="space-y-2 mt-4">
@@ -216,7 +218,7 @@ export default function LandingPage() {
                     Standard VCF Directory
                   </span>
                   <span className="ml-auto text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5">
-                    Ksh. 10 fee
+                    Ksh. {registrationFee} fee
                   </span>
                 </div>
                 <UserDirectory
