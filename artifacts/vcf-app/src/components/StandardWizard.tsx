@@ -135,6 +135,9 @@ export function StandardWizard() {
   const [reference, setReference] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [paylorEnabled, setPaylorEnabled] = useState<boolean | null>(null);
+  // Keep the registrationId across retries so we don't re-create the row and
+  // hit the unique (phone, type) constraint when the user clicks "TRY AGAIN".
+  const [registrationId, setRegistrationId] = useState<number | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
@@ -221,6 +224,23 @@ export function StandardWizard() {
     }, POLL_INTERVAL_MS);
   };
 
+  const sendStkPush = async (regId: number, parsedPay: ReturnType<typeof parsePhoneNumber>) => {
+    try {
+      const { reference: ref } = await initiatePaylorPush({
+        registrationId: regId,
+        phone: parsedPay!.number.toString(),
+        name: name.trim(),
+      });
+      setReference(ref);
+      setPayStep("waiting");
+      startPolling(ref);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to send payment prompt. Please try again.";
+      setError(msg);
+      setPayStep("failed");
+    }
+  };
+
   const handlePayNow = async () => {
     clearError();
 
@@ -232,6 +252,13 @@ export function StandardWizard() {
     }
 
     setPayStep("initiating");
+
+    // If we already have a registration from a previous attempt, reuse it —
+    // this prevents hitting the unique (phone, type) constraint on retry.
+    if (registrationId !== null) {
+      await sendStkPush(registrationId, parsedPay);
+      return;
+    }
 
     const parsedReg = parsePhoneNumber(phone)!;
     const payload = {
@@ -246,20 +273,8 @@ export function StandardWizard() {
       { data: payload },
       {
         onSuccess: async (data: RegistrationResponse) => {
-          try {
-            const { reference: ref } = await initiatePaylorPush({
-              registrationId: data.id,
-              phone: parsedPay.number.toString(),
-              name: name.trim(),
-            });
-            setReference(ref);
-            setPayStep("waiting");
-            startPolling(ref);
-          } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : "Failed to send payment prompt. Please try again.";
-            setError(msg);
-            setPayStep("failed");
-          }
+          setRegistrationId(data.id);
+          await sendStkPush(data.id, parsedPay);
         },
       },
     );
@@ -295,7 +310,15 @@ export function StandardWizard() {
     setReference("");
     setElapsed(0);
     clearError();
+    // Do NOT clear registrationId here — reusing it avoids the "already
+    // registered" error when the user retries with the same phone number.
     submitReg.reset();
+  };
+
+  const handleChangePhone = () => {
+    handleRetry();
+    setRegistrationId(null); // New phone = new registration row is allowed
+    setStep(2);
   };
 
   useEffect(() => () => stopPolling(), []);
@@ -525,7 +548,7 @@ export function StandardWizard() {
                     <Button
                       variant="outline"
                       className="w-full h-10"
-                      onClick={() => { handleRetry(); setStep(2); }}
+                      onClick={handleChangePhone}
                     >
                       CHANGE PHONE NUMBER
                     </Button>
