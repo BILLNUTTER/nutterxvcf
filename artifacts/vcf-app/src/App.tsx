@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import LandingPage from "@/pages/LandingPage";
 import PendingPage from "@/pages/PendingPage";
 import AdminPage from "@/pages/AdminPage";
+import VcfGuidePage from "@/pages/VcfGuidePage";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -28,6 +29,7 @@ function RouteHandler() {
     <Switch>
       <Route path="/" component={LandingPage} />
       <Route path="/pending" component={PendingPage} />
+      <Route path="/vcf-guide" component={VcfGuidePage} />
       <Route component={NotFound} />
     </Switch>
   );

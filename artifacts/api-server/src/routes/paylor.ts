@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { settingsTable, paylorTransactionsTable, registrationsTable } from "@workspace/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, desc, sql } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin-tokens";
 import { z } from "zod";
 import crypto from "crypto";
@@ -392,6 +392,44 @@ router.post("/paylor/verify", async (req, res) => {
 
   // Still pending according to Paylor
   res.json({ status: "pending", message: "Payment not confirmed yet. Please enter your M-Pesa PIN if you have not done so." });
+});
+
+// ── GET /api/admin/paylor-transactions ───────────────────────────────────────
+router.get("/admin/paylor-transactions", requireAdmin, async (req, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: paylorTransactionsTable.id,
+        reference: paylorTransactionsTable.reference,
+        paylorTransactionId: paylorTransactionsTable.paylorTransactionId,
+        registrationId: paylorTransactionsTable.registrationId,
+        payPhone: paylorTransactionsTable.phone,
+        amount: paylorTransactionsTable.amount,
+        status: paylorTransactionsTable.status,
+        mpesaReceipt: paylorTransactionsTable.mpesaReceipt,
+        failureReason: paylorTransactionsTable.failureReason,
+        createdAt: paylorTransactionsTable.createdAt,
+        updatedAt: paylorTransactionsTable.updatedAt,
+        registrantName: registrationsTable.name,
+        registrantPhone: registrationsTable.phone,
+      })
+      .from(paylorTransactionsTable)
+      .leftJoin(registrationsTable, eq(paylorTransactionsTable.registrationId, registrationsTable.id))
+      .orderBy(desc(paylorTransactionsTable.createdAt));
+
+    const revenueResult = await db
+      .select({ total: sql<number>`coalesce(sum(${paylorTransactionsTable.amount}), 0)` })
+      .from(paylorTransactionsTable)
+      .where(eq(paylorTransactionsTable.status, "completed"));
+
+    const totalRevenue = Number(revenueResult[0]?.total ?? 0);
+    const completedCount = rows.filter(r => r.status === "completed").length;
+
+    res.json({ transactions: rows, totalRevenue, completedCount, total: rows.length });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch paylor transactions");
+    res.status(500).json({ error: "server_error", message: "Failed to fetch transactions" });
+  }
 });
 
 // ── POST /api/paylor/callback ─────────────────────────────────────────────────

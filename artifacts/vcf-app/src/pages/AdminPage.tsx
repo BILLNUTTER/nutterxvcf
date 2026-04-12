@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck, UserCheck, Plus, X, Zap, ToggleLeft, ToggleRight, Key } from "lucide-react";
+import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck, UserCheck, Plus, X, Zap, ToggleLeft, ToggleRight, Key, TrendingUp, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 
@@ -717,10 +717,39 @@ async function deletePaymentConfirmation(token: string, id: number): Promise<voi
   });
 }
 
+interface PaylorTx {
+  id: number;
+  reference: string;
+  paylorTransactionId: string | null;
+  registrationId: number | null;
+  payPhone: string;
+  amount: number;
+  status: string;
+  mpesaReceipt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  registrantName: string | null;
+  registrantPhone: string | null;
+}
+
+async function fetchPaylorTransactions(token: string): Promise<{ transactions: PaylorTx[]; totalRevenue: number; completedCount: number; total: number }> {
+  const res = await fetch("/api/admin/paylor-transactions", { headers: { "x-admin-token": token } });
+  if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
+  return res.json() as Promise<{ transactions: PaylorTx[]; totalRevenue: number; completedCount: number; total: number }>;
+}
+
 function PaymentsTable({ token, onAuthError }: { token: string; onAuthError: () => void }) {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  const { data: paylorData, isLoading: paylorLoading, error: paylorError } = useQuery({
+    queryKey: ["/api/admin/paylor-transactions"],
+    queryFn: () => fetchPaylorTransactions(token),
+    refetchInterval: 8000,
+    throwOnError: false,
+  });
 
   const { data, isLoading, error: paymentsError } = useQuery({
     queryKey: ["/api/admin/payment-confirmations"],
@@ -731,7 +760,8 @@ function PaymentsTable({ token, onAuthError }: { token: string; onAuthError: () 
 
   useEffect(() => {
     if (paymentsError && (paymentsError as { status?: number }).status === 401) onAuthError();
-  }, [paymentsError]);
+    if (paylorError && (paylorError as { status?: number }).status === 401) onAuthError();
+  }, [paymentsError, paylorError]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/payment-confirmations"] });
 
@@ -755,113 +785,198 @@ function PaymentsTable({ token, onAuthError }: { token: string; onAuthError: () 
     }
   };
 
-  const statusBadge = (status: string) => {
+  const smsStatusBadge = (status: string) => {
     if (status === "actioned") return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/40">ACTIONED</span>;
     if (status === "reviewed") return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40">REVIEWED</span>;
     return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">PENDING</span>;
   };
 
-  if (isLoading) {
-    return <div className="h-64 flex items-center justify-center font-mono text-muted-foreground">LOADING PAYMENT DATA...</div>;
-  }
+  const paylorStatusBadge = (status: string) => {
+    if (status === "completed") return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/40">COMPLETED</span>;
+    if (status === "failed") return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40">FAILED</span>;
+    return <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">PENDING</span>;
+  };
 
-  const confirmations = data?.confirmations || [];
+  const transactions = paylorData?.transactions ?? [];
+  const confirmations = data?.confirmations ?? [];
 
   return (
-    <Card className="border-t-4 border-t-amber-500/70 bg-black/40">
-      <CardHeader>
-        <CardTitle className="text-xl flex items-center gap-2">
-          <Smartphone className="w-5 h-5 text-amber-400" />
-          M-Pesa Payment Confirmations
-        </CardTitle>
-        <CardDescription>
-          Total Submissions: {data?.total || 0} — M-Pesa Number:{" "}
-          <span className="font-bold text-amber-300 tracking-widest">0758891491</span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {confirmations.length === 0 ? (
-          <div className="text-center p-8 text-muted-foreground font-mono border border-dashed border-amber-500/20 rounded-lg">
-            NO PAYMENT CONFIRMATIONS YET
+    <div className="space-y-6">
+      {/* ── Revenue Summary ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-xl border border-green-500/30 bg-black/40 p-4 flex items-center gap-4">
+          <div className="p-2.5 rounded-lg bg-green-500/10 border border-green-500/20">
+            <TrendingUp className="w-5 h-5 text-green-400" />
           </div>
-        ) : (
-          <div className="space-y-3">
-            {confirmations.map((c) => (
-              <div
-                key={c.id}
-                className={`rounded-lg border ${c.status === "actioned" ? "border-green-500/30 bg-green-500/5" : c.status === "reviewed" ? "border-blue-500/30 bg-blue-500/5" : "border-amber-500/30 bg-amber-500/5"} p-4 space-y-3`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{c.name}</span>
-                      {statusBadge(c.status)}
+          <div>
+            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Total Revenue</p>
+            <p className="text-2xl font-bold text-green-300">
+              Ksh. {(paylorData?.totalRevenue ?? 0).toLocaleString()}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-primary/30 bg-black/40 p-4 flex items-center gap-4">
+          <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20">
+            <CreditCard className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Paid Transactions</p>
+            <p className="text-2xl font-bold text-white">{paylorData?.completedCount ?? 0}</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border/30 bg-black/40 p-4 flex items-center gap-4">
+          <div className="p-2.5 rounded-lg bg-white/5 border border-border/20">
+            <Smartphone className="w-5 h-5 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">All Attempts</p>
+            <p className="text-2xl font-bold text-white">{paylorData?.total ?? 0}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Paylor Transactions ── */}
+      <Card className="border-t-4 border-t-green-500/70 bg-black/40">
+        <CardHeader>
+          <CardTitle className="text-xl flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-green-400" />
+            M-Pesa STK Push Payments
+          </CardTitle>
+          <CardDescription>
+            Automated Paylor payments — {paylorData?.total ?? 0} total, {paylorData?.completedCount ?? 0} confirmed
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {paylorLoading ? (
+            <div className="h-32 flex items-center justify-center font-mono text-muted-foreground">LOADING...</div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center p-8 text-muted-foreground font-mono border border-dashed border-green-500/20 rounded-lg">
+              NO STK PUSH PAYMENTS YET
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {transactions.map((tx) => (
+                <div
+                  key={tx.id}
+                  className={`rounded-lg border p-3.5 ${
+                    tx.status === "completed"
+                      ? "border-green-500/30 bg-green-500/5"
+                      : tx.status === "failed"
+                      ? "border-red-500/20 bg-red-500/5"
+                      : "border-amber-500/20 bg-amber-500/5"
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-white">{tx.registrantName ?? "Unknown"}</span>
+                        {paylorStatusBadge(tx.status)}
+                        <span className="text-xs font-bold font-mono text-green-300 bg-green-500/10 px-2 py-0.5 rounded border border-green-500/30">
+                          Ksh. {tx.amount}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-muted-foreground">
+                        <span>{tx.payPhone}</span>
+                        <span>•</span>
+                        <span>{format(new Date(tx.createdAt), "yyyy-MM-dd HH:mm")}</span>
+                        {tx.mpesaReceipt && (
+                          <>
+                            <span>•</span>
+                            <span className="text-green-400 font-bold">{tx.mpesaReceipt}</span>
+                          </>
+                        )}
+                        {tx.failureReason && (
+                          <>
+                            <span>•</span>
+                            <span className="text-red-400">{tx.failureReason}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-[10px] font-mono text-muted-foreground/60">
+                        Ref: {tx.reference}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
-                      <span>{c.phone}</span>
-                      <span>•</span>
-                      <span>{format(new Date(c.createdAt), "yyyy-MM-dd HH:mm")}</span>
-                      <span>•</span>
-                      <span className="text-muted-foreground/60">#{c.id.toString().padStart(4, "0")}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 px-2 text-muted-foreground hover:text-white"
-                      onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                    >
-                      <Eye className="w-3.5 h-3.5 mr-1" />
-                      {expandedId === c.id ? "HIDE" : "VIEW"}
-                    </Button>
-                    {c.status === "pending" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 px-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
-                        onClick={() => statusMutation.mutate({ id: c.id, status: "reviewed" })}
-                        disabled={statusMutation.isPending}
-                      >
-                        <Eye className="w-3.5 h-3.5 mr-1" /> REVIEWED
-                      </Button>
-                    )}
-                    {(c.status === "pending" || c.status === "reviewed") && (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="h-8 px-2 bg-green-600 hover:bg-green-500 shadow-[0_0_8px_rgba(22,163,74,0.4)]"
-                        onClick={() => statusMutation.mutate({ id: c.id, status: "actioned" })}
-                        disabled={statusMutation.isPending}
-                      >
-                        <CheckCheck className="w-3.5 h-3.5 mr-1" /> ACTIONED
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant={confirmDeleteId === c.id ? "destructive" : "ghost"}
-                      className={`h-8 px-2 ${confirmDeleteId === c.id ? "animate-pulse" : "text-destructive/70 hover:text-destructive hover:bg-destructive/10"}`}
-                      onClick={() => handleDelete(c.id)}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="w-3.5 h-3.5 mr-1" />
-                      {confirmDeleteId === c.id ? "CONFIRM?" : "DELETE"}
-                    </Button>
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-                {expandedId === c.id && (
-                  <div className="rounded border border-border/50 bg-background/40 px-3 py-2.5">
-                    <p className="text-[10px] font-bold font-mono text-muted-foreground uppercase tracking-wider mb-1.5">M-PESA MESSAGE</p>
-                    <p className="text-sm font-mono text-white/90 whitespace-pre-wrap leading-relaxed">{c.mpesaMessage}</p>
+      {/* ── Legacy SMS Confirmations ── */}
+      {confirmations.length > 0 && (
+        <Card className="border-t-4 border-t-amber-500/40 bg-black/40">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-amber-400" />
+              Legacy SMS Confirmations
+            </CardTitle>
+            <CardDescription>Manual payment pastes — {data?.total ?? 0} total</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="h-24 flex items-center justify-center font-mono text-muted-foreground">LOADING...</div>
+            ) : (
+              <div className="space-y-3">
+                {confirmations.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`rounded-lg border ${c.status === "actioned" ? "border-green-500/30 bg-green-500/5" : c.status === "reviewed" ? "border-blue-500/30 bg-blue-500/5" : "border-amber-500/30 bg-amber-500/5"} p-4 space-y-3`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">{c.name}</span>
+                          {smsStatusBadge(c.status)}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+                          <span>{c.phone}</span>
+                          <span>•</span>
+                          <span>{format(new Date(c.createdAt), "yyyy-MM-dd HH:mm")}</span>
+                          <span>•</span>
+                          <span className="text-muted-foreground/60">#{c.id.toString().padStart(4, "0")}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                        <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground hover:text-white"
+                          onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
+                          <Eye className="w-3.5 h-3.5 mr-1" />{expandedId === c.id ? "HIDE" : "VIEW"}
+                        </Button>
+                        {c.status === "pending" && (
+                          <Button size="sm" variant="outline" className="h-8 px-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                            onClick={() => statusMutation.mutate({ id: c.id, status: "reviewed" })} disabled={statusMutation.isPending}>
+                            <Eye className="w-3.5 h-3.5 mr-1" /> REVIEWED
+                          </Button>
+                        )}
+                        {(c.status === "pending" || c.status === "reviewed") && (
+                          <Button size="sm" variant="default" className="h-8 px-2 bg-green-600 hover:bg-green-500 shadow-[0_0_8px_rgba(22,163,74,0.4)]"
+                            onClick={() => statusMutation.mutate({ id: c.id, status: "actioned" })} disabled={statusMutation.isPending}>
+                            <CheckCheck className="w-3.5 h-3.5 mr-1" /> ACTIONED
+                          </Button>
+                        )}
+                        <Button size="sm" variant={confirmDeleteId === c.id ? "destructive" : "ghost"}
+                          className={`h-8 px-2 ${confirmDeleteId === c.id ? "animate-pulse" : "text-destructive/70 hover:text-destructive hover:bg-destructive/10"}`}
+                          onClick={() => handleDelete(c.id)} disabled={deleteMutation.isPending}>
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                          {confirmDeleteId === c.id ? "CONFIRM?" : "DELETE"}
+                        </Button>
+                      </div>
+                    </div>
+                    {expandedId === c.id && (
+                      <div className="rounded border border-border/50 bg-background/40 px-3 py-2.5">
+                        <p className="text-[10px] font-bold font-mono text-muted-foreground uppercase tracking-wider mb-1.5">M-PESA MESSAGE</p>
+                        <p className="text-sm font-mono text-white/90 whitespace-pre-wrap leading-relaxed">{c.mpesaMessage}</p>
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 

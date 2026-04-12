@@ -46,8 +46,9 @@ async function tryRedirectWithClaimToken(claimToken: string, type: "standard" | 
   }
 }
 
-function downloadVcf(type: "standard" | "bot") {
-  window.open(`/api/vcf/download?type=${type}`, "_blank");
+function openVcfGuide(type: "standard" | "bot") {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  window.location.href = `${base}/vcf-guide?type=${type}`;
 }
 
 type Tab = "standard" | "bot";
@@ -202,7 +203,7 @@ export default function LandingPage() {
                 targetCount={standardTarget}
                 accentColor="primary"
                 isTargetReached={stdTargetReached}
-                onDownloadVcf={stdTargetReached ? () => downloadVcf("standard") : undefined}
+                onDownloadVcf={stdTargetReached ? () => openVcfGuide("standard") : undefined}
               />
 
               <StandardWizard />
@@ -221,7 +222,6 @@ export default function LandingPage() {
                 <UserDirectory
                   users={stdUsers}
                   accentColor="primary"
-                  verificationNote={{ kind: "payment", amount: "10", mpesaNumber: "0758891491" }}
                 />
               </div>
             </motion.div>
@@ -242,8 +242,8 @@ export default function LandingPage() {
                 targetCount={botTarget}
                 accentColor="secondary"
                 isTargetReached={botTargetReached}
-                onDownloadVcf={botTargetReached ? () => downloadVcf("bot") : undefined}
-                verificationNote={{ kind: "free" }}
+                onDownloadVcf={botTargetReached ? () => openVcfGuide("bot") : undefined}
+                isFree={true}
               />
 
               <BotFlow />
@@ -262,7 +262,6 @@ export default function LandingPage() {
                 <UserDirectory
                   users={botUsers}
                   accentColor="secondary"
-                  verificationNote={{ kind: "free" }}
                 />
               </div>
             </motion.div>

@@ -1,13 +1,8 @@
 import type { VerifiedUser } from "@workspace/api-client-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { User, ShieldCheck, PauseCircle, Download, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { User, ShieldCheck, PauseCircle, Download, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { CopyableNumber } from "@/components/CopyableNumber";
-
-type VerificationNote =
-  | { kind: "payment"; amount: string; mpesaNumber: string }
-  | { kind: "free" };
 
 interface CapacityBarProps {
   title: string;
@@ -16,7 +11,7 @@ interface CapacityBarProps {
   accentColor: "primary" | "secondary";
   onDownloadVcf?: () => void;
   isTargetReached?: boolean;
-  verificationNote?: VerificationNote;
+  isFree?: boolean;
 }
 
 export function CapacityBar({
@@ -26,7 +21,7 @@ export function CapacityBar({
   accentColor,
   onDownloadVcf,
   isTargetReached = false,
-  verificationNote,
+  isFree,
 }: CapacityBarProps) {
   const approvedCount = users.filter((u) => u.status === "approved").length;
   const progress = Math.min((approvedCount / targetCount) * 100, 100);
@@ -49,31 +44,13 @@ export function CapacityBar({
         <Progress value={progress} indicatorColor="bg-orange-500" className="h-2.5 bg-orange-950/60" />
       </div>
 
-      {/* Verification requirement notice */}
-      {verificationNote && (
-        verificationNote.kind === "payment" ? (
-          <div className="rounded-lg bg-amber-500/10 border border-amber-500/40 px-4 py-4 text-amber-300 space-y-3">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
-              <span className="text-xs font-bold font-mono uppercase tracking-wide text-amber-300">
-                Verification Fee Required — Send Ksh. {verificationNote.amount} to:
-              </span>
-            </div>
-            <div className="flex justify-center">
-              <CopyableNumber number={verificationNote.mpesaNumber} label="M-Pesa Number" size="lg" />
-            </div>
-            <p className="text-[11px] font-mono text-amber-300/70 text-center">
-              After paying, paste your M-Pesa confirmation message in the <span className="text-white font-bold">Payment</span> tab.
-            </p>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/30 px-3 py-2 text-green-300">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-green-400" />
-            <p className="text-xs font-mono font-bold uppercase tracking-widest text-green-300">
-              Bot Owner Verification is FREE
-            </p>
-          </div>
-        )
+      {isFree && (
+        <div className="flex items-center gap-2 rounded-lg bg-green-500/10 border border-green-500/30 px-3 py-2 text-green-300">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-green-400" />
+          <p className="text-xs font-mono font-bold uppercase tracking-widest text-green-300">
+            Bot Owner Verification is FREE
+          </p>
+        </div>
       )}
 
       {isTargetReached && onDownloadVcf && (
@@ -98,10 +75,9 @@ export function CapacityBar({
 interface UserDirectoryProps {
   users: VerifiedUser[];
   accentColor: "primary" | "secondary";
-  verificationNote?: VerificationNote;
 }
 
-export function UserDirectory({ users, accentColor, verificationNote }: UserDirectoryProps) {
+export function UserDirectory({ users, accentColor }: UserDirectoryProps) {
   const borderClass = accentColor === "primary" ? "border-primary/30" : "border-secondary/30";
   const iconColor = accentColor === "primary" ? "text-primary" : "text-secondary";
 
@@ -111,28 +87,7 @@ export function UserDirectory({ users, accentColor, verificationNote }: UserDire
         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Verified Directory
         </h4>
-        {verificationNote && (
-          verificationNote.kind === "payment" ? (
-            <span className="flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5">
-              <AlertTriangle className="w-3 h-3" />
-              Ksh. {verificationNote.amount} fee
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 text-[10px] font-bold font-mono uppercase tracking-wider text-green-400 bg-green-500/10 border border-green-500/30 rounded-full px-2 py-0.5">
-              <CheckCircle2 className="w-3 h-3" />
-              FREE
-            </span>
-          )
-        )}
       </div>
-
-      {/* Directory-level verification reminder */}
-      {verificationNote?.kind === "payment" && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-3 text-[11px] font-mono text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1.5 leading-snug">
-          <span>Pay <span className="font-bold text-amber-300">Ksh. {verificationNote.amount}</span> to join →</span>
-          <CopyableNumber number={verificationNote.mpesaNumber} size="sm" />
-        </div>
-      )}
 
       {users.length === 0 ? (
         <p className="text-center text-muted-foreground text-sm py-6 font-mono">
