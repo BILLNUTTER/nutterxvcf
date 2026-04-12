@@ -222,7 +222,6 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
       setCheckingPhone(false);
     }
 
-    if (!payPhone) setPayPhone(phone);
     setStep(3);
   };
 
@@ -322,8 +321,8 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
   const handlePayNow = async () => {
     clearError();
 
-    const effectivePayPhone = payPhone || phone;
-    const parsedPay = parsePhoneNumber(effectivePayPhone);
+    const effectivePayPhone = payPhone;
+    const parsedPay = effectivePayPhone ? parsePhoneNumber(effectivePayPhone) : null;
     if (!parsedPay || !parsedPay.isValid()) {
       setError("The M-Pesa phone number doesn't look right. Please check it and try again.");
       return;
@@ -402,7 +401,7 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
   useEffect(() => () => stopPolling(), []);
 
   const secondsLeft = Math.max(0, Math.round((POLL_TIMEOUT_MS - elapsed) / 1000));
-  const effectivePayPhone = payPhone || phone;
+  const effectivePayPhone = payPhone;
   const parsedPayPhone = effectivePayPhone ? parsePhoneNumber(effectivePayPhone) : null;
 
   return (
@@ -485,7 +484,7 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
                           </div>
                           <div className="space-y-1.5">
                             <p className="text-[10px] font-mono text-amber-400/80 uppercase tracking-wider">
-                              M-Pesa number to receive the PIN prompt:
+                              Enter your M-Pesa number:
                             </p>
                             <div className="rounded-md border-2 overflow-hidden border-amber-500/40 focus-within:border-amber-400 focus-within:shadow-[0_0_10px_rgba(251,191,36,0.25)] transition-all bg-black/40">
                               <PhoneInput
@@ -496,7 +495,7 @@ export function StandardWizard({ registrationFee = 10 }: { registrationFee?: num
                               />
                             </div>
                             <p className="text-[10px] font-mono text-amber-400/60 leading-relaxed">
-                              Change this if you want to pay from a different number than your registered one.
+                              Enter the M-Pesa number you will use to make the payment. This can be any number — it does not have to match your registered number.
                             </p>
                           </div>
                         </div>
