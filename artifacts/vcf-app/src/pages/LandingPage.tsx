@@ -278,7 +278,7 @@ export default function LandingPage() {
             className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors drop-shadow-[0_0_5px_hsl(var(--primary)/0.5)]"
           >
             <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
-            SUPPORT CONTACT: +254 713 881613
+            SUPPORT CONTACT: +254 758 891491
           </a>
         </div>
       </footer>

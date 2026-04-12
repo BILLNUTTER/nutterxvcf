@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck, UserCheck, Plus, X } from "lucide-react";
+import { Terminal, Lock, CheckCircle, XCircle, LogOut, PauseCircle, Trash2, Settings, Save, Smartphone, Eye, CheckCheck, UserCheck, Plus, X, Zap, ToggleLeft, ToggleRight, Key } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 
@@ -148,8 +148,9 @@ export default function AdminPage() {
           </Button>
         </header>
 
-        {/* Settings Panel */}
+        {/* Settings Panels */}
         <TargetSettingsPanel token={token!} onAuthError={handleAuthError} />
+        <PaylorSettingsPanel token={token!} onAuthError={handleAuthError} />
 
         <Tabs defaultValue="standard" className="w-full">
           <TabsList className="grid w-full sm:w-[576px] grid-cols-3 mb-8">
@@ -307,6 +308,200 @@ function TargetSettingsPanel({ token, onAuthError }: { token: string; onAuthErro
               >
                 <Save className="w-4 h-4 mr-2" />
                 {updateMutation.isPending ? "SAVING..." : "SAVE TARGETS"}
+              </Button>
+              {saveMsg && (
+                <span className={`text-xs font-mono ${saveMsg.startsWith("ERROR") ? "text-destructive" : "text-green-400"}`}>
+                  {saveMsg}
+                </span>
+              )}
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Paylor Settings Panel ────────────────────────────────────────────────────
+
+interface PaylorSettings {
+  apiKey: string;
+  channelId: string;
+  webhookSecret: string;
+  enabled: boolean;
+  callbackUrl: string;
+}
+
+async function fetchPaylorSettings(token: string): Promise<PaylorSettings> {
+  const res = await fetch("/api/admin/paylor-settings", { headers: { "x-admin-token": token } });
+  if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status}`);
+  return res.json() as Promise<PaylorSettings>;
+}
+
+async function savePaylorSettings(token: string, data: Partial<PaylorSettings>): Promise<void> {
+  const res = await fetch("/api/admin/paylor-settings", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "x-admin-token": token },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json() as { message?: string };
+    throw new Error(err.message ?? "Failed to save");
+  }
+}
+
+function PaylorSettingsPanel({ token, onAuthError }: { token: string; onAuthError: () => void }) {
+  const queryClient = useQueryClient();
+  const [apiKey, setApiKey] = useState("");
+  const [channelId, setChannelId] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
+  const [callbackUrl, setCallbackUrl] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  const { data, isLoading } = useQuery<PaylorSettings>({
+    queryKey: ["/api/admin/paylor-settings"],
+    queryFn: () => fetchPaylorSettings(token),
+  });
+
+  useEffect(() => {
+    if (data) {
+      setApiKey(data.apiKey);
+      setChannelId(data.channelId);
+      setWebhookSecret(data.webhookSecret);
+      setCallbackUrl(data.callbackUrl);
+      setEnabled(data.enabled);
+    }
+  }, [data]);
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: Partial<PaylorSettings>) => savePaylorSettings(token, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/paylor-settings"] });
+      setSaveMsg("SETTINGS SAVED");
+      setTimeout(() => setSaveMsg(""), 3000);
+    },
+    onError: (err: Error) => {
+      if ((err as { status?: number }).status === 401) { onAuthError(); return; }
+      setSaveMsg(`ERROR: ${err.message}`);
+      setTimeout(() => setSaveMsg(""), 4000);
+    },
+  });
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveMutation.mutate({ apiKey, channelId, webhookSecret, callbackUrl, enabled });
+  };
+
+  const toggleEnabled = () => {
+    const next = !enabled;
+    setEnabled(next);
+    saveMutation.mutate({ enabled: next });
+  };
+
+  return (
+    <Card className="border-t-4 border-t-amber-500/60 bg-black/40">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="w-5 h-5 text-amber-400" />
+            <CardTitle className="text-lg tracking-widest text-amber-300">PAYLORKE PAYMENT API</CardTitle>
+          </div>
+          <button
+            type="button"
+            onClick={toggleEnabled}
+            className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-widest transition-colors"
+          >
+            {enabled ? (
+              <>
+                <ToggleRight className="w-6 h-6 text-green-400" />
+                <span className="text-green-400">ENABLED</span>
+              </>
+            ) : (
+              <>
+                <ToggleLeft className="w-6 h-6 text-muted-foreground" />
+                <span className="text-muted-foreground">DISABLED</span>
+              </>
+            )}
+          </button>
+        </div>
+        <CardDescription className="font-mono text-xs">
+          Configure Paylorke M-Pesa STK Push automation. Get credentials from{" "}
+          <a href="https://paylorke.com" target="_blank" rel="noreferrer" className="text-amber-400 underline">paylorke.com</a>.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="font-mono text-muted-foreground text-sm">LOADING...</p>
+        ) : (
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold font-mono text-amber-300/80 uppercase tracking-wider flex items-center gap-1.5">
+                  <Key className="w-3 h-3" /> API Key
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showKey ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="payl_live_..."
+                    className="font-mono pr-10 bg-black/40 border-amber-500/30 focus:border-amber-500/70"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold font-mono text-amber-300/80 uppercase tracking-wider">
+                  Channel ID
+                </label>
+                <Input
+                  value={channelId}
+                  onChange={(e) => setChannelId(e.target.value)}
+                  placeholder="PAYL-XXXXXX"
+                  className="font-mono bg-black/40 border-amber-500/30 focus:border-amber-500/70"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold font-mono text-amber-300/80 uppercase tracking-wider">
+                  Webhook Secret (Key ID)
+                </label>
+                <Input
+                  type="password"
+                  value={webhookSecret}
+                  onChange={(e) => setWebhookSecret(e.target.value)}
+                  placeholder="6995fe04..."
+                  className="font-mono bg-black/40 border-amber-500/30 focus:border-amber-500/70"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold font-mono text-amber-300/80 uppercase tracking-wider">
+                  Callback URL
+                </label>
+                <Input
+                  value={callbackUrl}
+                  onChange={(e) => setCallbackUrl(e.target.value)}
+                  placeholder="https://your-domain.com/api/paylor/callback"
+                  className="font-mono bg-black/40 border-amber-500/30 focus:border-amber-500/70 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <Button
+                type="submit"
+                disabled={saveMutation.isPending}
+                className="h-10 px-6 bg-amber-600 hover:bg-amber-500 text-black font-bold"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {saveMutation.isPending ? "SAVING..." : "SAVE API SETTINGS"}
               </Button>
               {saveMsg && (
                 <span className={`text-xs font-mono ${saveMsg.startsWith("ERROR") ? "text-destructive" : "text-green-400"}`}>

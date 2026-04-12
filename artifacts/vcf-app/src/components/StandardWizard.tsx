@@ -1,78 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useSubmitRegistration } from "@workspace/api-client-react";
 import type { RegistrationInputRegistrationType, RegistrationResponse, ApiError } from "@workspace/api-client-react";
-import { useMutation } from "@tanstack/react-query";
 import PhoneInput, { parsePhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { playSuccessSound } from "@/lib/utils";
-import { Loader2, ChevronRight, CheckCircle2, ShieldAlert, Copy, Check } from "lucide-react";
+import { Loader2, ChevronRight, CheckCircle2, ShieldAlert, Smartphone, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-const MPESA_NUMBER = "0758891491";
-const MPESA_RECIPIENT_NAME = "CALVIN OSORO";
-
-// Mirror the server-side validation so bad messages are caught before any API call
-function clientValidateMpesa(msg: string): string | null {
-  const t = msg.trim();
-  if (!t) return "Please paste your M-Pesa confirmation message.";
-  if (!/^[A-Z0-9]{8,12} Confirmed\./.test(t))
-    return "Invalid message: must start with the M-Pesa code followed by 'Confirmed.' (e.g. UCURIAYGQL Confirmed.)";
-  const amountMatch = /Ksh(\d[\d,]*(?:\.\d{1,2})?) sent to/i.exec(t);
-  if (!amountMatch)
-    return "Invalid message: could not find a 'Ksh… sent to' amount.";
-  const sentAmt = amountMatch[1].replace(/,/g, "");
-  if (parseFloat(sentAmt) !== 10.00 || sentAmt !== "10.00")
-    return `Wrong payment amount: message shows Ksh${amountMatch[1]} but exactly Ksh10.00 is required.`;
-  const recipientMatch = /sent to ([A-Z][A-Z ]+?)\s+(0758891491)/i.exec(t);
-  if (!recipientMatch)
-    return `Invalid recipient: payment must be sent to ${MPESA_NUMBER}.`;
-  const extractedName = recipientMatch[1].trim().replace(/\s+/g, " ").toUpperCase();
-  if (extractedName !== MPESA_RECIPIENT_NAME)
-    return "Recipient name does not match the registered account for this M-Pesa number. Do not edit the message.";
-  if (!/New M-PESA balance is Ksh/.test(t))
-    return "Invalid message: missing 'New M-PESA balance is Ksh…' line.";
-  if (!/Transaction cost, Ksh0\.00/.test(t))
-    return "Invalid message: missing 'Transaction cost, Ksh0.00' line.";
-  if (/[^\w\s.,\-/:*#()\n\r]/.test(t))
-    return "Message contains unexpected characters. Paste the exact M-Pesa SMS without editing it.";
-  return null;
-}
-
-const MPESA_PLACEHOLDER = "Paste the full M-Pesa confirmation SMS here...";
-
-function CopyBtn({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    void navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <button
-      onClick={copy}
-      className="ml-2 p-1 rounded text-primary/70 hover:text-primary hover:bg-primary/10 transition-all"
-      title="Copy"
-    >
-      {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-    </button>
-  );
-}
-
-async function submitPaymentProof(data: { name: string; phone: string; mpesaMessage: string }) {
-  const res = await fetch("/api/payment-confirmation", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = await res.json() as { message?: string };
-    throw new Error(err.message ?? "Failed to submit payment");
-  }
-}
 
 const variants = {
   enter: { opacity: 0, x: 30 },
@@ -81,6 +18,10 @@ const variants = {
 };
 
 type Step = 1 | 2 | 3;
+type PayStep = "idle" | "initiating" | "waiting" | "success" | "failed";
+
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 120_000;
 
 function StepIndicator({ step }: { step: Step }) {
   const steps = [
@@ -140,21 +81,59 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
   );
 }
 
+async function fetchPaylorConfig(): Promise<{ enabled: boolean }> {
+  const res = await fetch("/api/paylor/config");
+  if (!res.ok) return { enabled: false };
+  return res.json() as Promise<{ enabled: boolean }>;
+}
+
+async function initiatePaylorPush(data: { registrationId: number; phone: string; name: string }): Promise<{ reference: string }> {
+  const res = await fetch("/api/paylor/initiate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const json = await res.json() as { reference?: string; message?: string };
+  if (!res.ok) throw new Error(json.message ?? "Failed to initiate payment");
+  return { reference: json.reference! };
+}
+
+async function pollPaylorStatus(reference: string): Promise<{ status: string; mpesaReceipt?: string; failureReason?: string }> {
+  const res = await fetch(`/api/paylor/status/${encodeURIComponent(reference)}`);
+  if (!res.ok) throw new Error("Status check failed");
+  return res.json() as Promise<{ status: string; mpesaReceipt?: string; failureReason?: string }>;
+}
+
 export function StandardWizard() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [mpesaMsg, setMpesaMsg] = useState("");
   const [error, setError] = useState("");
+
+  const [payStep, setPayStep] = useState<PayStep>("idle");
+  const [reference, setReference] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+  const [paylorEnabled, setPaylorEnabled] = useState<boolean | null>(null);
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elapsedRef = useRef(0);
+
+  // Check if Paylor is configured on mount
+  useEffect(() => {
+    fetchPaylorConfig()
+      .then((c) => setPaylorEnabled(c.enabled))
+      .catch(() => setPaylorEnabled(false));
+  }, []);
 
   const submitReg = useSubmitRegistration({
     mutation: {
-      onError: (err: ApiError) => setError(err.message || "Registration failed."),
-    }
+      onError: (err: ApiError) => {
+        setError(err.message || "Registration failed.");
+        setPayStep("idle");
+      },
+    },
   });
-
-  const paymentMutation = useMutation({ mutationFn: submitPaymentProof });
 
   const clearError = () => setError("");
 
@@ -175,12 +154,50 @@ export function StandardWizard() {
     setStep(3);
   };
 
-  const handleSubmit = async () => {
-    clearError();
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
 
-    // Client-side validation first (mirrors server rules)
-    const clientErr = clientValidateMpesa(mpesaMsg);
-    if (clientErr) { setError(clientErr); return; }
+  const startPolling = (ref: string) => {
+    elapsedRef.current = 0;
+    setElapsed(0);
+    stopPolling();
+
+    pollRef.current = setInterval(async () => {
+      elapsedRef.current += POLL_INTERVAL_MS;
+      setElapsed(elapsedRef.current);
+
+      if (elapsedRef.current >= POLL_TIMEOUT_MS) {
+        stopPolling();
+        setPayStep("failed");
+        setError("Payment timed out. The M-Pesa prompt was not responded to in time. Please try again.");
+        return;
+      }
+
+      try {
+        const result = await pollPaylorStatus(ref);
+        if (result.status === "completed") {
+          stopPolling();
+          setPayStep("success");
+          playSuccessSound();
+          setTimeout(() => setLocation("/pending"), 1200);
+        } else if (result.status === "failed" || result.status === "cancelled") {
+          stopPolling();
+          setPayStep("failed");
+          setError(result.failureReason ?? "Payment was not completed. Please try again.");
+        }
+      } catch {
+        // ignore transient poll errors
+      }
+    }, POLL_INTERVAL_MS);
+  };
+
+  const handlePayNow = async () => {
+    clearError();
+    setPayStep("initiating");
 
     const parsed = parsePhoneNumber(phone)!;
     const payload = {
@@ -195,32 +212,41 @@ export function StandardWizard() {
       { data: payload },
       {
         onSuccess: async (data: RegistrationResponse) => {
-          const p = parsePhoneNumber(phone)!;
-          try {
-            await paymentMutation.mutateAsync({
-              name: name.trim(),
-              phone: p.number.toString(),
-              mpesaMessage: mpesaMsg.trim(),
-            });
-          } catch (err: unknown) {
-            // Server rejected the message — show the error and stay on step 3
-            const msg =
-              err instanceof Error
-                ? err.message
-                : "Payment validation failed. Check your M-Pesa message and try again.";
-            setError(msg);
-            return;
-          }
-          playSuccessSound();
           localStorage.setItem("vcf_claim_standard", data.claimToken);
           localStorage.setItem("vcf_pending_type", "standard");
-          setLocation("/pending");
+
+          try {
+            const { reference: ref } = await initiatePaylorPush({
+              registrationId: data.id,
+              phone: parsed.number.toString(),
+              name: name.trim(),
+            });
+            setReference(ref);
+            setPayStep("waiting");
+            startPolling(ref);
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "Failed to send payment prompt.";
+            setError(msg);
+            setPayStep("failed");
+          }
         },
-      }
+      },
     );
   };
 
-  const isPending = submitReg.isPending || paymentMutation.isPending;
+  const handleRetry = () => {
+    stopPolling();
+    setPayStep("idle");
+    setReference("");
+    setElapsed(0);
+    clearError();
+    // Reset registration so they re-submit on next attempt
+    submitReg.reset();
+  };
+
+  useEffect(() => () => stopPolling(), []);
+
+  const secondsLeft = Math.max(0, Math.round((POLL_TIMEOUT_MS - elapsed) / 1000));
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -280,48 +306,131 @@ export function StandardWizard() {
               </motion.div>
             )}
 
-            {/* ── Step 3: Payment + M-Pesa message ── */}
+            {/* ── Step 3: Paylor STK Push ── */}
             {step === 3 && (
               <motion.div key="s3" variants={variants} initial="enter" animate="center" exit="exit" className="space-y-4">
-                {/* Pay to number */}
-                <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/8 px-4 py-3 flex flex-col items-center gap-1.5 shadow-[0_0_16px_rgba(251,191,36,0.1)]">
-                  <p className="text-[10px] font-bold font-mono uppercase tracking-widest text-amber-400">
-                    Send <span className="text-amber-300">Ksh. 10</span> via M-Pesa to:
-                  </p>
-                  <div className="flex items-center">
-                    <span className="text-2xl font-black font-mono text-amber-300 tracking-widest drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]">
-                      {MPESA_NUMBER}
-                    </span>
-                    <CopyBtn text={MPESA_NUMBER} />
+
+                {/* Idle / ready to pay */}
+                {payStep === "idle" && (
+                  <>
+                    <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/8 px-4 py-4 flex flex-col items-center gap-2 shadow-[0_0_16px_rgba(251,191,36,0.1)]">
+                      <Smartphone className="w-8 h-8 text-amber-400" />
+                      <p className="text-sm font-bold font-mono uppercase tracking-widest text-amber-300 text-center">
+                        M-Pesa Payment
+                      </p>
+                      <p className="text-xs text-amber-400/80 font-mono text-center leading-relaxed">
+                        Click <span className="text-amber-300 font-bold">PAY KSH 10</span> and you will receive an M-Pesa PIN prompt on your phone{" "}
+                        <span className="text-amber-300 font-bold">{parsePhoneNumber(phone)?.formatInternational()}</span>.
+                        Enter your PIN to complete payment.
+                      </p>
+                      <div className="mt-1 px-3 py-1.5 rounded-full border border-amber-500/40 bg-black/40">
+                        <span className="text-2xl font-black font-mono text-amber-300 tracking-widest drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]">
+                          Ksh. 10
+                        </span>
+                      </div>
+                    </div>
+
+                    {paylorEnabled === false && (
+                      <div className="p-3 border border-amber-600/50 bg-amber-600/10 text-amber-400 text-xs font-mono rounded-md">
+                        ⚠ Automated payments not yet configured. Contact admin at 0758891491.
+                      </div>
+                    )}
+
+                    {error && <ErrorBox>{error}</ErrorBox>}
+
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1 h-12" onClick={() => { clearError(); setStep(2); }}>
+                        BACK
+                      </Button>
+                      <Button
+                        className="flex-[2] h-12 text-base bg-amber-600 hover:bg-amber-500 text-black font-bold shadow-[0_0_16px_rgba(251,191,36,0.3)]"
+                        onClick={handlePayNow}
+                        disabled={paylorEnabled === false}
+                      >
+                        PAY KSH 10 VIA M-PESA
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {/* Initiating: creating registration */}
+                {payStep === "initiating" && (
+                  <div className="flex flex-col items-center gap-4 py-8">
+                    <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                    <p className="text-sm font-mono text-primary text-center">Creating your registration...</p>
                   </div>
-                </div>
+                )}
 
-                {/* M-Pesa message box */}
-                <div className="rounded-xl border-2 border-primary/50 bg-primary/5 shadow-[0_0_16px_hsl(var(--primary)/0.08)] p-4 space-y-2">
-                  <Label>Paste M-Pesa Confirmation SMS</Label>
+                {/* Waiting: STK push sent, polling */}
+                {payStep === "waiting" && (
+                  <div className="flex flex-col items-center gap-4 py-6">
+                    <div className="relative">
+                      <div className="w-16 h-16 rounded-full border-4 border-amber-500/30 flex items-center justify-center">
+                        <Smartphone className="w-8 h-8 text-amber-400" />
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                        <div className="w-2.5 h-2.5 rounded-full bg-black animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="text-center space-y-1.5">
+                      <p className="text-sm font-bold font-mono text-amber-300 uppercase tracking-widest">
+                        Check Your Phone!
+                      </p>
+                      <p className="text-xs font-mono text-muted-foreground leading-relaxed">
+                        An M-Pesa PIN prompt has been sent to<br />
+                        <span className="text-white font-bold">{parsePhoneNumber(phone)?.formatInternational()}</span>
+                        <br />Enter your PIN to complete the Ksh 10 payment.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground/60">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Waiting for confirmation... {secondsLeft}s
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground hover:text-destructive"
+                      onClick={handleRetry}
+                    >
+                      Cancel &amp; Try Again
+                    </Button>
+                  </div>
+                )}
 
-                  <textarea
-                    placeholder={MPESA_PLACEHOLDER}
-                    value={mpesaMsg}
-                    onChange={(e) => setMpesaMsg(e.target.value)}
-                    rows={5}
-                    className="w-full rounded-md border-2 border-primary/40 focus:border-primary bg-black/40 px-3 py-2 text-sm font-mono text-white placeholder:text-white/20 resize-none focus:outline-none focus:shadow-[0_0_10px_hsl(var(--primary)/0.3)] transition-all"
-                    disabled={isPending}
-                  />
-                </div>
+                {/* Success */}
+                {payStep === "success" && (
+                  <div className="flex flex-col items-center gap-4 py-8">
+                    <CheckCircle2 className="w-14 h-14 text-green-400 drop-shadow-[0_0_12px_rgba(74,222,128,0.6)]" />
+                    <p className="text-sm font-bold font-mono text-green-400 uppercase tracking-widest text-center">
+                      Payment Confirmed!
+                    </p>
+                    <p className="text-xs font-mono text-muted-foreground text-center">
+                      Redirecting to your registration status...
+                    </p>
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
 
-                {error && <ErrorBox>{error}</ErrorBox>}
+                {/* Failed */}
+                {payStep === "failed" && (
+                  <div className="flex flex-col gap-4">
+                    {error && <ErrorBox>{error}</ErrorBox>}
+                    <Button
+                      className="w-full h-12"
+                      onClick={handleRetry}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" /> TRY AGAIN
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full h-10"
+                      onClick={() => { handleRetry(); setStep(2); }}
+                    >
+                      CHANGE PHONE NUMBER
+                    </Button>
+                  </div>
+                )}
 
-                <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1 h-12" onClick={() => { clearError(); setStep(2); }} disabled={isPending}>
-                    BACK
-                  </Button>
-                  <Button className="flex-[2] h-12 text-base" onClick={handleSubmit} disabled={isPending}>
-                    {isPending
-                      ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> SUBMITTING...</>
-                      : "SUBMIT FOR REVIEW"}
-                  </Button>
-                </div>
               </motion.div>
             )}
 
