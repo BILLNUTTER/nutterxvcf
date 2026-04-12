@@ -221,10 +221,9 @@ export function StandardWizard() {
               phone: parsed.number.toString(),
               name: name.trim(),
             });
-            // Only set claim token now — do NOT set vcf_pending_type yet.
-            // That is set only after payment is confirmed so PendingPage
-            // doesn't immediately redirect to WhatsApp before payment is done.
-            localStorage.setItem("vcf_claim_standard", data.claimToken);
+            // Do NOT touch localStorage here. vcf_claim_standard is not needed
+            // for the Paylor flow — payment confirmation triggers the WhatsApp
+            // redirect directly without storing anything until it's confirmed.
             setReference(ref);
             setPayStep("waiting");
             startPolling(ref);

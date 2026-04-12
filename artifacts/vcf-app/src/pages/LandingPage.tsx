@@ -34,7 +34,13 @@ async function tryRedirectWithClaimToken(claimToken: string, type: "standard" | 
     });
     if (res.ok) {
       const { redirectUrl } = await res.json() as { redirectUrl: string };
-      if (redirectUrl) window.location.href = redirectUrl;
+      // Open in a new tab so the preview/iframe is never hijacked by an
+      // external URL that the browser can't display in-frame.
+      if (redirectUrl) {
+        window.open(redirectUrl, "_blank", "noopener,noreferrer");
+        // Clear token so the tab isn't re-opened on every subsequent visit.
+        localStorage.removeItem(`vcf_claim_${type}`);
+      }
     }
   } catch {
   }
